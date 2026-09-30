@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { CATEGORIES, summarize, type Expense, type ExpenseInput } from './shared';
+import { CATEGORIES, formatVndInput, summarize, type Expense, type ExpenseInput } from './shared';
 import { connectGoogleDrive, disconnectGoogleDrive, listExpenses, addExpense, updateExpense, deleteExpense, DriveAuthError } from './googleDrive';
 import './style.css';
 
 const money = (amount: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(amount);
 const dateLabel = (value: string) => value.split('-').reverse().join('/');
+const PIE_COLORS = ['#e99679', '#8b78a4', '#a7bba6', '#e6ba71', '#8badb8', '#d393ac'];
+const NEW_CATEGORY = '__new_category__';
 function todayVietnam(): string {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
   const part = (type: string) => parts.find(p => p.type === type)?.value ?? '';
@@ -33,6 +35,9 @@ function App() {
   const [refreshTick, setRefreshTick] = useState(0);
   const [items, setItems] = useState<Expense[]>([]);
   const [form, setForm] = useState<ExpenseInput>(blank);
+  const [amountText, setAmountText] = useState('');
+  const [customCategory, setCustomCategory] = useState(false);
+  const [knownCategories, setKnownCategories] = useState<string[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -40,6 +45,13 @@ function App() {
   const [error, setError] = useState('');
   const summary = useMemo(() => summarize(items, month), [items, month]);
   const categories = [...summary.byCategory.entries()].sort((a, b) => b[1] - a[1]);
+  const categoryChoices = [...new Set([...CATEGORIES, ...knownCategories, ...(form.category && !customCategory ? [form.category] : [])])];
+  let piePosition = 0;
+  const pieGradient = categories.map(([, amount], index) => {
+    const start = piePosition;
+    piePosition += amount / summary.total * 100;
+    return `${PIE_COLORS[index % PIE_COLORS.length]} ${start}% ${piePosition}%`;
+  }).join(', ');
   const daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => {
     const key = month + '-' + String(i + 1).padStart(2, '0');
@@ -56,8 +68,8 @@ function App() {
     if (!unlocked) return;
     let active = true;
     setLoading(true);
-    listExpenses(month)
-      .then(result => { if (active) { setItems(result); setError(''); } })
+    listExpenses()
+      .then(result => { if (active) { setItems(result.filter(item => item.spent_on.startsWith(month + '-'))); setKnownCategories([...new Set(result.map(item => item.category))]); setError(''); } })
       .catch(cause => { if (active) report(cause); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -88,8 +100,9 @@ function App() {
     try {
       if (editing) await updateExpense(editing, { ...form, amount_vnd: amount });
       else await addExpense({ ...form, amount_vnd: amount });
+      setKnownCategories(current => [...new Set([...current, form.category.trim()])]);
       const targetMonth = form.spent_on.slice(0, 7);
-      setEditing(null); setForm(blank()); setMessage(editing ? 'Đã cập nhật khoản chi.' : 'Đã ghi khoản chi.');
+      setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); setMessage(editing ? 'Đã cập nhật khoản chi.' : 'Đã ghi khoản chi.');
       if (targetMonth !== month) setMonth(targetMonth);
       else {
         setItems(await listExpenses(month));
@@ -100,6 +113,8 @@ function App() {
   function startEdit(item: Expense) {
     setEditing(item.id);
     setForm({ spent_on: item.spent_on, amount_vnd: item.amount_vnd, description: item.description, category: item.category });
+    setAmountText(formatVndInput(String(item.amount_vnd)));
+    setCustomCategory(false);
     setMessage(''); setError('');
     document.getElementById('entry-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -109,7 +124,7 @@ function App() {
     try {
       await deleteExpense(item.id);
       setItems(current => current.filter(entry => entry.id !== item.id));
-      if (editing === item.id) { setEditing(null); setForm(blank()); }
+      if (editing === item.id) { setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); }
       setMessage('Đã xóa khoản chi.');
     } catch (e) { report(e); }
     finally { setBusy(false); }
@@ -127,7 +142,7 @@ function App() {
     } catch (cause) { report(cause); }
   }
   function logout() {
-    disconnectGoogleDrive(); setUnlocked(false); setDriveUrl(''); setItems([]); setEditing(null); setForm(blank()); setMessage(''); setError('');
+    disconnectGoogleDrive(); setUnlocked(false); setDriveUrl(''); setItems([]); setKnownCategories([]); setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); setMessage(''); setError('');
   }
 
   if (!unlocked) return <main className="lock-shell">
@@ -176,15 +191,15 @@ function App() {
           <p className="section-subtitle">Một vài giây để ghi lại điều bạn vừa chi.</p>
           <form onSubmit={save} className="entry-form">
             <label>Ngày chi<input type="date" value={form.spent_on} onChange={e => setForm({ ...form, spent_on: e.target.value })} required /></label>
-            <label>Số tiền (VND)<input type="number" inputMode="numeric" min="1" max="1000000000000" step="1" placeholder="Ví dụ: 50.000" value={form.amount_vnd || ''} onChange={e => setForm({ ...form, amount_vnd: Number(e.target.value) })} required /></label>
+            <label>Số tiền (VND)<input type="text" inputMode="numeric" maxLength={17} placeholder="Ví dụ: 50.000" value={amountText} onChange={e => { const formatted = formatVndInput(e.target.value); setAmountText(formatted); setForm({ ...form, amount_vnd: Number(formatted.replaceAll('.', '')) }); }} required /></label>
             <label className="wide">Đã chi cho việc gì?<input type="text" maxLength={160} placeholder="Ví dụ: Cà phê buổi sáng" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required /></label>
-            <label className="wide">Nhóm chi tiêu<input type="text" list="category-options" maxLength={40} placeholder="Chọn hoặc nhập nhóm mới" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} required /><datalist id="category-options">{CATEGORIES.map(c => <option key={c} value={c} />)}</datalist></label>
-            <div className="form-actions wide"><button type="submit" className="button primary" disabled={busy}>{busy ? 'Đang lưu…' : editing ? 'Lưu thay đổi' : '＋ Ghi khoản chi'}</button>{editing && <button type="button" className="button secondary" onClick={() => { setEditing(null); setForm(blank()); }}>Hủy sửa</button>}</div>
+            <label className="wide">Nhóm chi tiêu<select value={customCategory ? NEW_CATEGORY : form.category} onChange={e => { const value = e.target.value; setCustomCategory(value === NEW_CATEGORY); setForm({ ...form, category: value === NEW_CATEGORY ? '' : value }); }}>{categoryChoices.map(c => <option key={c} value={c}>{c}</option>)}<option value={NEW_CATEGORY}>＋ Nhập nhóm mới…</option></select>{customCategory && <input type="text" maxLength={40} placeholder="Tên nhóm mới" aria-label="Tên nhóm mới" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} required />}</label>
+            <div className="form-actions wide"><button type="submit" className="button primary" disabled={busy}>{busy ? 'Đang lưu…' : editing ? 'Lưu thay đổi' : '＋ Ghi khoản chi'}</button>{editing && <button type="button" className="button secondary" onClick={() => { setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); }}>Hủy sửa</button>}</div>
           </form>
         </section>
         <section className="panel chart-panel">
           <div className="section-head"><div><p className="eyebrow">PHÂN BỔ CHI TIÊU</p><h2>Chi theo nhóm</h2></div><span className="head-icon">◔</span></div>
-          {categories.length ? <div className="category-chart">{categories.map(([name, amount], i) => <div className="category-row" key={name}><div className="category-line"><span><i className={'category-dot color-' + (i % 6)} />{name}</span><strong>{money(amount)}</strong></div><div className="bar-track"><div className={'bar-fill color-' + (i % 6)} style={{ width: Math.max(2, amount / maxCategory * 100) + '%' }} /></div></div>)}</div> : <EmptyChart />}
+          {categories.length ? <div className="category-chart"><div className="pie-wrap"><div className="pie-chart" role="img" aria-label={'Biểu đồ tròn chi tiêu theo nhóm trong ' + monthLabel(month)} style={{ background: `conic-gradient(${pieGradient})` }}><div className="pie-center"><small>Tổng đã chi</small><strong>{money(summary.total)}</strong></div></div></div>{categories.map(([name, amount], i) => <div className="category-row" key={name}><div className="category-line"><span><i className={'category-dot color-' + (i % 6)} />{name}</span><strong>{Math.round(amount / summary.total * 100)}% · {money(amount)}</strong></div><div className="bar-track"><div className={'bar-fill color-' + (i % 6)} style={{ width: Math.max(2, amount / maxCategory * 100) + '%' }} /></div></div>)}</div> : <EmptyChart />}
         </section>
       </div>
       <section className="panel daily-panel">

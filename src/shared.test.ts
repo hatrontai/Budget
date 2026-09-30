@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidDate, monthBounds, summarize, validateExpense, type Expense } from './shared';
+import { formatVndInput, isValidDate, monthBounds, summarize, validateExpense, type Expense } from './shared';
 
 const sample: Expense[] = [
   { id: 'a', spent_on: '2026-09-02', amount_vnd: 50000, description: 'Cà phê', category: 'Ăn uống', created_at: '' },
@@ -9,6 +9,12 @@ const sample: Expense[] = [
 ];
 
 describe('expense data', () => {
+  it('formats typed and pasted VND amounts without changing their value', () => {
+    expect(formatVndInput('50000')).toBe('50.000');
+    expect(formatVndInput('1.250.000')).toBe('1.250.000');
+    expect(formatVndInput('0001234')).toBe('1.234');
+    expect(formatVndInput('')).toBe('');
+  });
   it('rejects impossible dates and amounts', () => {
     expect(isValidDate('2026-02-30')).toBe(false);
     expect(isValidDate('2024-02-29')).toBe(true);

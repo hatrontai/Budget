@@ -40,8 +40,8 @@ Tài liệu chính thức: [GitHub Pages với Actions](https://docs.github.com/
 
 ## Sử dụng và dữ liệu
 
-- Thêm khoản chi bằng ngày, số tiền nguyên VND, nội dung và nhóm. Có thể nhập nhóm mới.
-- Sửa, xóa và xem biểu đồ trong tháng đã chọn. Nút làm mới hoặc quay lại tab sẽ tải các thay đổi từ thiết bị khác.
+- Thêm khoản chi bằng ngày, số tiền nguyên VND, nội dung và nhóm. Số tiền có dấu chấm ngăn cách hàng nghìn khi nhập; nhóm có danh sách xổ xuống và mục nhập nhóm mới.
+- Sửa, xóa và xem biểu đồ tròn theo nhóm, biểu đồ thanh theo nhóm và biểu đồ theo ngày trong tháng đã chọn. Nút làm mới hoặc quay lại tab sẽ tải các thay đổi từ thiết bị khác.
 - Nút **Mở Drive** mở bảng tính gốc. Nút **Xuất CSV** tải toàn bộ khoản chi còn hiệu lực.
 - Xóa khoản chi trong web sẽ đánh dấu xóa ở cột deleted_at để tránh lệch dòng khi nhiều thiết bị cùng dùng; dữ liệu cũ vẫn nằm trong Sheets nếu bạn cần khôi phục thủ công.
 - Mỗi lần mở lại trang, bạn có thể cần bấm kết nối Google vì mã truy cập Google chỉ được giữ tạm trong bộ nhớ trình duyệt. Ứng dụng không lưu mật khẩu hay token lên GitHub.

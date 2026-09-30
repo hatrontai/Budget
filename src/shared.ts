@@ -11,6 +11,11 @@ export type ExpenseInput = Pick<Expense, 'spent_on' | 'amount_vnd' | 'descriptio
 
 export const CATEGORIES = ['Ăn uống', 'Đi lại', 'Mua sắm', 'Nhà cửa', 'Hóa đơn', 'Sức khỏe', 'Giải trí', 'Khác'];
 
+export function formatVndInput(value: string): string {
+  const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
 export function isValidDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, day] = value.split('-').map(Number);
