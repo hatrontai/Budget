@@ -6,7 +6,7 @@
 
 Project, Google Drive API, Google Sheets API và OAuth Web Client ID đã được tạo. Trong **Google Auth Platform → Audience**, thêm email Google của bạn vào **Test users** nếu ứng dụng ở chế độ Testing. Trong **Clients → Web application → Authorized JavaScript origins**, thêm:
 
-- https://TEN_GITHUB_CUA_BAN.github.io
+- https://hatrontai.github.io
 - http://localhost:5173 (để thử trên máy)
 
 Origin chỉ gồm giao thức và tên miền, không thêm đường dẫn repository.
@@ -30,16 +30,11 @@ Chạy npm test để kiểm tra dữ liệu và npm run build để tạo bản
 
 ## 3. Đưa lên GitHub Pages
 
-1. Tạo một repository mới trên GitHub, ví dụ quan_ly_chi_tieu. Repository công khai dùng được với GitHub Pages trên gói miễn phí; Client ID trong .env.production là thông tin công khai, không phải Client Secret.
-2. Vào **Settings → Pages → Build and deployment → Source**, chọn **GitHub Actions**.
-3. Dự án đã có commit trên nhánh main. Trong thư mục dự án trên máy, chạy các lệnh sau (thay TEN_GITHUB_CUA_BAN):
+Mã đã nằm trong repository [hatrontai/Budget](https://github.com/hatrontai/Budget) trên nhánh `main`. Client ID trong `.env.production` là thông tin công khai, không phải Client Secret.
 
-       git remote add origin https://github.com/TEN_GITHUB_CUA_BAN/quan_ly_chi_tieu.git
-       git push -u origin main
-
-4. Workflow trong .github/workflows/pages.yml sẽ tự kiểm tra, build và phát hành trang. Mở tab **Actions** để xem kết quả; URL thường là https://TEN_GITHUB_CUA_BAN.github.io/quan_ly_chi_tieu/.
-
-Nếu GitHub yêu cầu xác thực khi đẩy mã, hãy đăng nhập GitHub trong trình quản lý thông tin đăng nhập Git trên máy.
+1. Mở [Settings → Pages](https://github.com/hatrontai/Budget/settings/pages). Tại **Build and deployment → Source**, chọn **GitHub Actions**. Nếu đang chọn **Deploy from a branch**, GitHub sẽ phát trực tiếp mã nguồn thay vì ứng dụng đã build.
+2. Mở tab [Actions](https://github.com/hatrontai/Budget/actions) và chạy lại workflow **Deploy GitHub Pages** bằng **Run workflow**, hoặc đẩy một commit mới lên `main`.
+3. Khi workflow thành công, mở [ứng dụng](https://hatrontai.github.io/Budget/). Nếu Google báo lỗi `origin_mismatch`, kiểm tra OAuth client đã có `https://hatrontai.github.io` trong **Authorized JavaScript origins**. Không thêm `/Budget/` vào origin.
 
 Tài liệu chính thức: [GitHub Pages với Actions](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
 
@@ -52,4 +47,3 @@ Tài liệu chính thức: [GitHub Pages với Actions](https://docs.github.com/
 - Mỗi lần mở lại trang, bạn có thể cần bấm kết nối Google vì mã truy cập Google chỉ được giữ tạm trong bộ nhớ trình duyệt. Ứng dụng không lưu mật khẩu hay token lên GitHub.
 - Nếu ứng dụng tạo hơn một bảng do nhiều thiết bị kết nối lần đầu cùng lúc, nó dùng bảng được tạo sớm nhất. Hãy giữ một bản và chỉ xóa bản còn lại sau khi kiểm tra dữ liệu.
 
-Ứng dụng chưa được phát hành trực tuyến trong workspace này vì chưa có repository GitHub của bạn.
