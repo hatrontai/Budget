@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { CATEGORIES, formatVndInput, summarize, type Expense, type ExpenseInput } from './shared';
 import { connectGoogleDrive, disconnectGoogleDrive, listExpenses, addExpense, updateExpense, deleteExpense, DriveAuthError } from './googleDrive';
 import './style.css';
+import AmountInput from './AmountInput';
 
 const money = (amount: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(amount);
 const dateLabel = (value: string) => value.split('-').reverse().join('/');
@@ -191,7 +192,7 @@ function App() {
           <p className="section-subtitle">Một vài giây để ghi lại điều bạn vừa chi.</p>
           <form onSubmit={save} className="entry-form">
             <label>Ngày chi<input type="date" value={form.spent_on} onChange={e => setForm({ ...form, spent_on: e.target.value })} required /></label>
-            <label>Số tiền (VND)<input type="text" inputMode="numeric" maxLength={17} placeholder="Ví dụ: 50.000" value={amountText} onChange={e => { const formatted = formatVndInput(e.target.value); setAmountText(formatted); setForm({ ...form, amount_vnd: Number(formatted.replaceAll('.', '')) }); }} required /></label>
+            <label>Số tiền (VND)<AmountInput value={amountText} onChange={value => { setAmountText(value); setForm(current => ({ ...current, amount_vnd: Number(value.replaceAll('.', '')) })); }} /></label>
             <label className="wide">Đã chi cho việc gì?<input type="text" maxLength={160} placeholder="Ví dụ: Cà phê buổi sáng" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required /></label>
             <label className="wide">Nhóm chi tiêu<select value={customCategory ? NEW_CATEGORY : form.category} onChange={e => { const value = e.target.value; setCustomCategory(value === NEW_CATEGORY); setForm({ ...form, category: value === NEW_CATEGORY ? '' : value }); }}>{categoryChoices.map(c => <option key={c} value={c}>{c}</option>)}<option value={NEW_CATEGORY}>＋ Nhập nhóm mới…</option></select>{customCategory && <input type="text" maxLength={40} placeholder="Tên nhóm mới" aria-label="Tên nhóm mới" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} required />}</label>
             <div className="form-actions wide"><button type="submit" className="button primary" disabled={busy}>{busy ? 'Đang lưu…' : editing ? 'Lưu thay đổi' : '＋ Ghi khoản chi'}</button>{editing && <button type="button" className="button secondary" onClick={() => { setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); }}>Hủy sửa</button>}</div>
