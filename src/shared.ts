@@ -16,20 +16,6 @@ export function formatVndInput(value: string): string {
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
-export function formatVndEdit(value: string, caret: number): { value: string; caret: number } {
-  const digits = value.replace(/\D/g, '');
-  const removedZeros = digits.length - digits.replace(/^0+(?=\d)/, '').length;
-  const digitsBeforeCaret = Math.max(0, value.slice(0, caret).replace(/\D/g, '').length - removedZeros);
-  const formatted = formatVndInput(value);
-  let position = 0;
-  let count = 0;
-  while (position < formatted.length && count < digitsBeforeCaret) {
-    if (/\d/.test(formatted[position])) count++;
-    position++;
-  }
-  return { value: formatted, caret: position };
-}
-
 export function isValidDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, day] = value.split('-').map(Number);

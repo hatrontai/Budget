@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatVndEdit, formatVndInput, isValidDate, monthBounds, summarize, validateExpense, type Expense } from './shared';
+import { formatVndInput, isValidDate, monthBounds, summarize, validateExpense, type Expense } from './shared';
 
 const sample: Expense[] = [
   { id: 'a', spent_on: '2026-09-02', amount_vnd: 50000, description: 'Cà phê', category: 'Ăn uống', created_at: '' },
@@ -9,14 +9,6 @@ const sample: Expense[] = [
 ];
 
 describe('expense data', () => {
-  it('keeps the caret next to the edited digit when grouping changes', () => {
-    expect(formatVndEdit('1234', 4)).toEqual({ value: '1.234', caret: 5 });
-    expect(formatVndEdit('1.5234', 3)).toEqual({ value: '15.234', caret: 2 });
-    expect(formatVndEdit('12.34', 2)).toEqual({ value: '1.234', caret: 3 });
-    expect(formatVndEdit('1.34', 2)).toEqual({ value: '134', caret: 1 });
-    expect(formatVndEdit('0001234', 7)).toEqual({ value: '1.234', caret: 5 });
-    expect(formatVndEdit('', 0)).toEqual({ value: '', caret: 0 });
-  });
   it('formats typed and pasted VND amounts without changing their value', () => {
     expect(formatVndInput('50000')).toBe('50.000');
     expect(formatVndInput('1.250.000')).toBe('1.250.000');

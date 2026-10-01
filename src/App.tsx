@@ -44,6 +44,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [mobileSection, setMobileSection] = useState('overview');
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const summary = useMemo(() => summarize(items, month), [items, month]);
   const categories = [...summary.byCategory.entries()].sort((a, b) => b[1] - a[1]);
   const categoryChoices = [...new Set([...CATEGORIES, ...knownCategories, ...(form.category && !customCategory ? [form.category] : [])])];
@@ -82,6 +84,25 @@ function App() {
     return () => window.removeEventListener('focus', refresh);
   }, [unlocked]);
 
+  useEffect(() => { setSelectedDay(null); }, [month]);
+  useEffect(() => {
+    if (!unlocked) return;
+    let frame = 0;
+    const updateSection = () => {
+      frame = 0;
+      let current = 'overview';
+      for (const id of ['overview', 'entry-form', 'charts', 'history']) {
+        if ((document.getElementById(id)?.getBoundingClientRect().top ?? Infinity) <= 120) current = id;
+      }
+      setMobileSection(current);
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(updateSection); };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    updateSection();
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(frame); };
+  }, [unlocked]);
+
+
   async function unlock() {
     setBusy(true); setError('');
     try {
@@ -113,6 +134,7 @@ function App() {
   }
   function startEdit(item: Expense) {
     setEditing(item.id);
+    setMobileSection('entry-form');
     setForm({ spent_on: item.spent_on, amount_vnd: item.amount_vnd, description: item.description, category: item.category });
     setAmountText(formatVndInput(String(item.amount_vnd)));
     setCustomCategory(false);
@@ -163,15 +185,23 @@ function App() {
     <header className="topbar">
       <div className="topbar-inner">
         <div className="brand"><span className="brand-mark small">₫</span><span>Sổ chi tiêu</span></div>
-        <div className="top-actions">
+        <div className="top-actions desktop-actions">
           <a className="text-button" href={driveUrl} target="_blank" rel="noreferrer">↗ <span>Mở Drive</span></a>
           <button className="text-button" onClick={exportCsv}>↓ <span>Xuất CSV</span></button>
           <button className="text-button" onClick={logout}>Thoát</button>
         </div>
+        <details className="mobile-menu">
+          <summary aria-label="Mở menu tài khoản">⋯</summary>
+          <div className="mobile-menu-items">
+            <a href={driveUrl} target="_blank" rel="noreferrer">↗ Mở bảng tính Drive</a>
+            <button onClick={exportCsv}>↓ Xuất dữ liệu CSV</button>
+            <button onClick={logout}>Thoát tài khoản</button>
+          </div>
+        </details>
       </div>
     </header>
     <main className="container">
-      <section className="hero">
+      <section className="hero" id="overview">
         <div><p className="eyebrow">QUẢN LÝ CHI TIÊU CÁ NHÂN</p><h1>Chi tiêu rõ ràng.<br /><em>Tháng nào cũng vậy.</em></h1><p>Ghi nhanh hôm nay, hiểu thói quen chi tiêu của mình mỗi ngày.</p></div>
         <div className="hero-graphic" aria-hidden="true"><span className="hero-coin">₫</span><span className="hero-spark one">✦</span><span className="hero-spark two">✳</span></div>
       </section>
@@ -198,21 +228,28 @@ function App() {
             <div className="form-actions wide"><button type="submit" className="button primary" disabled={busy}>{busy ? 'Đang lưu…' : editing ? 'Lưu thay đổi' : '＋ Ghi khoản chi'}</button>{editing && <button type="button" className="button secondary" onClick={() => { setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); }}>Hủy sửa</button>}</div>
           </form>
         </section>
-        <section className="panel chart-panel">
+        <section className="panel chart-panel" id="charts">
           <div className="section-head"><div><p className="eyebrow">PHÂN BỔ CHI TIÊU</p><h2>Chi theo nhóm</h2></div><span className="head-icon">◔</span></div>
           {categories.length ? <div className="category-chart"><div className="pie-wrap"><div className="pie-chart" role="img" aria-label={'Biểu đồ tròn chi tiêu theo nhóm trong ' + monthLabel(month)} style={{ background: `conic-gradient(${pieGradient})` }}><div className="pie-center"><small>Tổng đã chi</small><strong>{money(summary.total)}</strong></div></div></div>{categories.map(([name, amount], i) => <div className="category-row" key={name}><div className="category-line"><span><i className={'category-dot color-' + (i % 6)} />{name}</span><strong>{Math.round(amount / summary.total * 100)}% · {money(amount)}</strong></div><div className="bar-track"><div className={'bar-fill color-' + (i % 6)} style={{ width: Math.max(2, amount / maxCategory * 100) + '%' }} /></div></div>)}</div> : <EmptyChart />}
         </section>
       </div>
       <section className="panel daily-panel">
         <div className="section-head"><div><p className="eyebrow">NHỊP CHI TIÊU</p><h2>Chi theo ngày</h2></div><span className="head-icon">▥</span></div>
-        {summary.count ? <div className="daily-scroll"><div className="daily-chart" role="img" aria-label={'Biểu đồ chi tiêu theo ngày trong ' + monthLabel(month)}>{days.map(d => <div className="day-column" key={d.day} title={'Ngày ' + d.day + ': ' + money(d.amount)}><div className="day-bar-space"><div className={'day-bar' + (d.amount ? ' active' : '')} style={{ height: d.amount ? Math.max(8, d.amount / maxDay * 100) + '%' : '3px' }} /></div><span>{d.day}</span></div>)}</div></div> : <EmptyChart />}
+        {summary.count ? <div className="daily-scroll"><div className="daily-chart" role="group" aria-label={'Biểu đồ chi tiêu theo ngày trong ' + monthLabel(month)}>{days.map(d => <button type="button" className={'day-column' + (selectedDay === d.day ? ' selected' : '')} key={d.day} aria-label={'Ngày ' + d.day + ': ' + money(d.amount)} aria-pressed={selectedDay === d.day} onClick={() => setSelectedDay(d.day)}><div className="day-bar-space"><div className={'day-bar' + (d.amount ? ' active' : '')} style={{ height: d.amount ? Math.max(8, d.amount / maxDay * 100) + '%' : '3px' }} /></div><span>{d.day}</span></button>)}</div></div> : <EmptyChart />}
+        {summary.count > 0 && <p className="day-detail" aria-live="polite">{selectedDay ? 'Ngày ' + selectedDay + ': ' + money(days[selectedDay - 1].amount) : 'Chạm vào cột để xem số tiền của ngày đó.'}</p>}
       </section>
-      <section className="panel history-panel">
+      <section className="panel history-panel" id="history">
         <div className="section-head"><div><p className="eyebrow">LỊCH SỬ</p><h2>Các khoản đã ghi <span className="count-pill">{summary.count}</span></h2></div></div>
         {loading ? <p className="empty-copy">Đang tải dữ liệu…</p> : items.length ? <div className="table-wrap"><table><thead><tr><th>Ngày</th><th>Nội dung</th><th>Nhóm</th><th>Số tiền</th><th aria-label="Thao tác" /></tr></thead><tbody>{items.map(item => <tr key={item.id}><td>{dateLabel(item.spent_on)}</td><td className="description-cell">{item.description}</td><td><span className="tag">{item.category}</span></td><td className="amount-cell">{money(item.amount_vnd)}</td><td className="row-actions"><button onClick={() => startEdit(item)} disabled={busy}>Sửa</button><button className="danger" onClick={() => remove(item)} disabled={busy}>Xóa</button></td></tr>)}</tbody></table></div> : <div className="empty-history"><span>✎</span><strong>Chưa có khoản chi nào</strong><p>Thêm khoản chi đầu tiên để bắt đầu theo dõi {monthLabel(month).toLowerCase()}.</p></div>}
       </section>
       <footer>Ghi chép đều đặn, hiểu tiền của mình hơn mỗi ngày.</footer>
     </main>
+    <nav className="mobile-nav" aria-label="Điều hướng sổ chi tiêu">
+      {[
+        ['overview', 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z', 'Tổng quan'], ['entry-form', 'M12 4v16 M4 12h16', 'Ghi chi'],
+        ['charts', 'M12 3v9h9 M9 3.5a9 9 0 1 0 11.5 11.5 M15 3.5a9 9 0 0 1 5.5 5.5H15z', 'Biểu đồ'], ['history', 'M8 5h13 M8 12h13 M8 19h13 M3 5h.01 M3 12h.01 M3 19h.01', 'Lịch sử'],
+      ].map(([id, icon, label]) => <a key={id} href={'#' + id} className={mobileSection === id ? 'active' : ''} aria-current={mobileSection === id ? 'location' : undefined} onClick={() => setMobileSection(id)}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={icon}/></svg>{label}</a>)}
+    </nav>
   </div>;
 }
 function EmptyChart() { return <div className="empty-chart"><span>◌</span><p>Chưa có dữ liệu trong tháng này.<br />Hãy thêm khoản chi để xem biểu đồ.</p></div>; }
