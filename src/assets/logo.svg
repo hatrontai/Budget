@@ -1,7 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect width="64" height="64" rx="19" fill="#4B3E69"/>
-  <circle cx="32" cy="34" r="22" fill="#CE825B"/>
-  <circle cx="32" cy="31" r="22" fill="#F0BC72"/>
-  <circle cx="32" cy="31" r="17.5" stroke="#FFE3B6" stroke-width="2"/>
-  <path d="M36 19v22 M36 32c0-5-3-8-7-8s-7 3-7 8 3 8 7 8 7-3 7-8 M29 22h13 M23 45h18" stroke="#4B3E69" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 228 237" fill="none">
+  <defs>
+    <filter id="shadow" x="0" y="0" width="228" height="237" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+  </defs>
+  <path fill="#F1E9E2" d="M0 0h228v237H0z"/>
+  <ellipse cx="126" cy="151" rx="72" ry="60" fill="#BB7955" fill-opacity=".16" filter="url(#shadow)"/>
+  <circle cx="113" cy="129" r="78" fill="#D98867"/>
+  <circle cx="98" cy="120" r="78" fill="#E9AA83"/>
+  <g transform="rotate(-16 98 120)" fill="#FFF8EE">
+    <path fill-rule="evenodd" d="M104 80h14v62h-14v-5c-4 4-9 6-15 6-13 0-22-8-22-21s9-21 22-21c6 0 11 2 15 5V80Zm-12 31c-7 0-11 4-11 11s4 11 11 11 12-4 12-11-5-11-12-11Z"/>
+    <path d="M96 83h28v11H96zM73 148h47v10H73z"/>
+  </g>
+  <path d="M190 48c2 9 6 13 14 15-8 2-12 6-14 15-2-9-6-13-14-15 8-2 12-6 14-15Z" fill="#766391"/>
+  <path d="M19 34v20M9 44h20M12 37l14 14M12 51l14-14" stroke="#766391" stroke-width="1.4" stroke-linecap="round"/>
 </svg>

@@ -114,4 +114,4 @@ html{scroll-behavior:smooth;scroll-padding-top:84px}
 
 @media(max-width:600px){.app-shell:has(.entry-form input:focus) .mobile-nav{display:none}}
 
-img.brand-mark{display:block;flex-shrink:0;object-fit:contain}
+img.brand-mark{display:block;flex-shrink:0;object-fit:cover;background:#f1e9e2;box-shadow:none}
