@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { CATEGORIES, formatVndInput, summarize, type Expense, type ExpenseInput } from './shared';
 import { connectGoogleDrive, disconnectGoogleDrive, listExpenses, addExpense, updateExpense, deleteExpense, DriveAuthError } from './googleDrive';
 import './style.css';
+import logo from './assets/logo.svg';
 import AmountInput from './AmountInput';
 
 const money = (amount: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(amount);
@@ -171,7 +172,7 @@ function App() {
   if (!unlocked) return <main className="lock-shell">
     <div className="lock-decor lock-decor-one" /><div className="lock-decor lock-decor-two" />
     <section className="lock-card">
-      <div className="brand-mark">₫</div>
+      <img className="brand-mark" src={logo} alt="Logo Sổ chi tiêu" width="48" height="48" />
       <p className="eyebrow">SỔ CHI TIÊU CỦA BẠN</p>
       <h1>Tiền đi đâu,<br /><em>mình biết rõ.</em></h1>
       <p className="lock-copy">Ghi lại từng khoản chi và nhìn toàn cảnh mỗi tháng. Dữ liệu của bạn nằm trong Google Sheets trên Drive.</p>
@@ -184,7 +185,7 @@ function App() {
   return <div className="app-shell">
     <header className="topbar">
       <div className="topbar-inner">
-        <div className="brand"><span className="brand-mark small">₫</span><span>Sổ chi tiêu</span></div>
+        <div className="brand"><img className="brand-mark small" src={logo} alt="" width="35" height="35" /><span>Sổ chi tiêu</span></div>
         <div className="top-actions desktop-actions">
           <a className="text-button" href={driveUrl} target="_blank" rel="noreferrer">↗ <span>Mở Drive</span></a>
           <button className="text-button" onClick={exportCsv}>↓ <span>Xuất CSV</span></button>
