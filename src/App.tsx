@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { CATEGORIES, formatVndInput, summarize, type Expense, type ExpenseInput } from './shared';
+import { CATEGORIES, formatVndInput, sortDailyCategories, summarize, type Expense, type ExpenseInput } from './shared';
 import { connectGoogleDrive, disconnectGoogleDrive, listExpenses, addExpense, updateExpense, deleteExpense, DriveAuthError } from './googleDrive';
 import './style.css';
 import logo from './assets/logo.svg';
@@ -60,7 +60,8 @@ function App() {
   const daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => {
     const key = month + '-' + String(i + 1).padStart(2, '0');
-    return { day: i + 1, amount: summary.byDay.get(key) ?? 0, groups: categories.filter(([name]) => summary.byDayCategory.get(key)?.has(name)).map(([name]) => ({ name, amount: summary.byDayCategory.get(key)!.get(name)! })) };
+    const groups = sortDailyCategories(summary.byDayCategory.get(key), summary.byDayCategoryCount.get(key));
+    return { day: i + 1, amount: summary.byDay.get(key) ?? 0, groups };
   });
   const maxDay = Math.max(1, ...days.map(d => d.amount));
   const maxCategory = Math.max(1, ...categories.map(c => c[1]));
@@ -239,10 +240,10 @@ function App() {
         <div className="section-head"><div><p className="eyebrow">NHỊP CHI TIÊU</p><h2>Chi theo ngày</h2></div><span className="head-icon">▥</span></div>
         {summary.count > 0 && <div className="daily-legend" aria-label="Chú thích nhóm chi tiêu">{categories.map(([name]) => <span key={name}><i className="category-dot" style={{ backgroundColor: categoryColors.get(name) }} />{name}</span>)}</div>}
         {summary.count ? <div className="daily-scroll"><div className="daily-chart" role="group" aria-label={'Biểu đồ chi tiêu theo ngày và nhóm trong ' + monthLabel(month)}>{days.map(d => {
-          const label = 'Ngày ' + d.day + ': ' + money(d.amount) + (d.groups.length ? '. ' + d.groups.map(group => group.name + ': ' + money(group.amount)).join(', ') : ' — Không có khoản chi');
+          const label = 'Ngày ' + d.day + ': ' + money(d.amount) + (d.groups.length ? '. ' + d.groups.map(group => group.name + ' (' + group.count + ' lần): ' + money(group.amount)).join(', ') : ' — Không có khoản chi');
           return <button type="button" className={'day-column' + (selectedDay === d.day ? ' selected' : '')} key={d.day} aria-label={label} title={label} aria-pressed={selectedDay === d.day} onClick={() => setSelectedDay(d.day)}><div className="day-bar-space"><div className={'day-bar' + (d.amount ? ' active' : '')} style={{ height: d.amount ? Math.max(8, d.amount / maxDay * 100) + '%' : '3px' }}>{d.groups.map(group => <span key={group.name} className="day-segment" style={{ height: group.amount / d.amount * 100 + '%', backgroundColor: categoryColors.get(group.name) }} />)}</div></div><span>{d.day}</span></button>;
         })}</div></div> : <EmptyChart />}
-        {summary.count > 0 && <div className="day-detail" aria-live="polite">{selectedDay ? <><strong>Ngày {selectedDay}: {money(days[selectedDay - 1].amount)}</strong><div className="day-breakdown">{days[selectedDay - 1].groups.length ? days[selectedDay - 1].groups.map(group => <span key={group.name}><i className="category-dot" style={{ backgroundColor: categoryColors.get(group.name) }} />{group.name}: <b>{money(group.amount)}</b></span>) : <span>Không có khoản chi trong ngày này.</span>}</div></> : 'Chạm vào cột để xem số tiền theo nhóm của ngày đó.'}</div>}
+        {summary.count > 0 && <div className="day-detail" aria-live="polite">{selectedDay ? <><strong>Ngày {selectedDay}: {money(days[selectedDay - 1].amount)}</strong><div className="day-breakdown">{days[selectedDay - 1].groups.length ? days[selectedDay - 1].groups.map(group => <span key={group.name}><i className="category-dot" style={{ backgroundColor: categoryColors.get(group.name) }} />{group.name} · {group.count} lần: <b>{money(group.amount)}</b></span>) : <span>Không có khoản chi trong ngày này.</span>}</div></> : 'Chạm vào cột để xem số tiền theo nhóm của ngày đó.'}</div>}
 
       </section>
       <section className="panel history-panel" id="history">

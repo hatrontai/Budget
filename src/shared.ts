@@ -46,10 +46,17 @@ export function monthBounds(month: string): [string, string] | null {
   return [`${month}-01`, `${next}-01`];
 }
 
+export function sortDailyCategories(amounts?: Map<string, number>, counts?: Map<string, number>) {
+  return [...(amounts ?? new Map<string, number>())]
+    .map(([name, amount]) => ({ name, amount, count: counts?.get(name) ?? 0 }))
+    .sort((a, b) => b.count - a.count || b.amount - a.amount || a.name.localeCompare(b.name, 'vi'));
+}
+
 export function summarize(expenses: Expense[], month: string) {
   const byCategory = new Map<string, number>();
   const byDay = new Map<string, number>();
   const byDayCategory = new Map<string, Map<string, number>>();
+  const byDayCategoryCount = new Map<string, Map<string, number>>();
   let total = 0;
   for (const expense of expenses) {
     if (!expense.spent_on.startsWith(`${month}-`)) continue;
@@ -59,6 +66,9 @@ export function summarize(expenses: Expense[], month: string) {
     const dailyGroups = byDayCategory.get(expense.spent_on) ?? new Map<string, number>();
     dailyGroups.set(expense.category, (dailyGroups.get(expense.category) ?? 0) + expense.amount_vnd);
     byDayCategory.set(expense.spent_on, dailyGroups);
+    const dailyCounts = byDayCategoryCount.get(expense.spent_on) ?? new Map<string, number>();
+    dailyCounts.set(expense.category, (dailyCounts.get(expense.category) ?? 0) + 1);
+    byDayCategoryCount.set(expense.spent_on, dailyCounts);
   }
-  return { total, byCategory, byDay, byDayCategory, count: expenses.filter((item) => item.spent_on.startsWith(`${month}-`)).length };
+  return { total, byCategory, byDay, byDayCategory, byDayCategoryCount, count: expenses.filter((item) => item.spent_on.startsWith(`${month}-`)).length };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatVndInput, isValidDate, monthBounds, summarize, validateExpense, type Expense } from './shared';
+import { formatVndInput, isValidDate, monthBounds, sortDailyCategories, summarize, validateExpense, type Expense } from './shared';
 
 const sample: Expense[] = [
   { id: 'a', spent_on: '2026-09-02', amount_vnd: 50000, description: 'Cà phê', category: 'Ăn uống', created_at: '' },
@@ -29,6 +29,10 @@ describe('expense data', () => {
     const mixed = [...sample, { id: 'e', spent_on: '2026-09-02', amount_vnd: 30000, description: 'Xe buýt', category: 'Đi lại', created_at: '' }];
     const result = summarize(mixed, '2026-09');
     expect([...result.byDayCategory.get('2026-09-02')!]).toEqual([['Ăn uống', 70000], ['Đi lại', 30000]]);
+    expect([...result.byDayCategoryCount.get('2026-09-02')!]).toEqual([['Ăn uống', 2], ['Đi lại', 1]]);
+    expect(sortDailyCategories(result.byDayCategory.get('2026-09-02'), result.byDayCategoryCount.get('2026-09-02')).map(group => group.name)).toEqual(['Ăn uống', 'Đi lại']);
+    expect(sortDailyCategories(new Map([['A', 100], ['B', 200]]), new Map([['A', 2], ['B', 1]])).map(group => group.name)).toEqual(['A', 'B']);
+    expect(sortDailyCategories(new Map([['A', 100], ['B', 200]]), new Map([['A', 1], ['B', 1]])).map(group => group.name)).toEqual(['B', 'A']);
     expect(result.byDayCategory.has('2026-10-01')).toBe(false);
     for (const [day, groups] of result.byDayCategory) {
       expect([...groups.values()].reduce((sum, value) => sum + value, 0)).toBe(result.byDay.get(day));
