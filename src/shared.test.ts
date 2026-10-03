@@ -25,6 +25,16 @@ describe('expense data', () => {
     expect(monthBounds('2026-12')).toEqual(['2026-12-01', '2027-01-01']);
     expect(monthBounds('2026-13')).toBeNull();
   });
+  it('splits each day by category and keeps the daily total', () => {
+    const mixed = [...sample, { id: 'e', spent_on: '2026-09-02', amount_vnd: 30000, description: 'Xe buýt', category: 'Đi lại', created_at: '' }];
+    const result = summarize(mixed, '2026-09');
+    expect([...result.byDayCategory.get('2026-09-02')!]).toEqual([['Ăn uống', 70000], ['Đi lại', 30000]]);
+    expect(result.byDayCategory.has('2026-10-01')).toBe(false);
+    for (const [day, groups] of result.byDayCategory) {
+      expect([...groups.values()].reduce((sum, value) => sum + value, 0)).toBe(result.byDay.get(day));
+    }
+    expect(summarize([], '2026-09').byDayCategory.size).toBe(0);
+  });
   it('aggregates only the selected month by day and category', () => {
     const result = summarize(sample, '2026-09');
     expect(result.total).toBe(170000);

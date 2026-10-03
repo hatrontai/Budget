@@ -40,7 +40,7 @@ Tài liệu chính thức: [GitHub Pages với Actions](https://docs.github.com/
 
 ## Sử dụng và dữ liệu
 
-Trên điện thoại, thanh điều hướng dưới cùng mở nhanh Tổng quan, Ghi chi, Biểu đồ và Lịch sử. Menu dấu ba chấm ở góc trên có Mở Drive, Xuất CSV và Thoát. Chạm vào cột ngày để xem số tiền; vuốt ngang để xem các ngày còn lại.
+Trên điện thoại, thanh điều hướng dưới cùng mở nhanh Tổng quan, Ghi chi, Biểu đồ và Lịch sử. Menu dấu ba chấm ở góc trên có Mở Drive, Xuất CSV và Thoát. Mỗi cột ngày gồm các phần màu theo nhóm, cùng màu với biểu đồ tròn; chạm vào cột để xem tổng tiền và từng nhóm; vuốt ngang để xem các ngày còn lại.
 
 - Thêm khoản chi bằng ngày, số tiền nguyên VND, nội dung và nhóm. Số tiền hiển thị bản xem trước có dấu chấm hàng nghìn, và định dạng trong ô khi nhập xong; nhóm có danh sách xổ xuống và mục nhập nhóm mới.
 - Sửa, xóa và xem biểu đồ tròn theo nhóm, biểu đồ thanh theo nhóm và biểu đồ theo ngày trong tháng đã chọn. Nút làm mới hoặc quay lại tab sẽ tải các thay đổi từ thiết bị khác.

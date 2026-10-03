@@ -49,12 +49,16 @@ export function monthBounds(month: string): [string, string] | null {
 export function summarize(expenses: Expense[], month: string) {
   const byCategory = new Map<string, number>();
   const byDay = new Map<string, number>();
+  const byDayCategory = new Map<string, Map<string, number>>();
   let total = 0;
   for (const expense of expenses) {
     if (!expense.spent_on.startsWith(`${month}-`)) continue;
     total += expense.amount_vnd;
     byCategory.set(expense.category, (byCategory.get(expense.category) ?? 0) + expense.amount_vnd);
     byDay.set(expense.spent_on, (byDay.get(expense.spent_on) ?? 0) + expense.amount_vnd);
+    const dailyGroups = byDayCategory.get(expense.spent_on) ?? new Map<string, number>();
+    dailyGroups.set(expense.category, (dailyGroups.get(expense.category) ?? 0) + expense.amount_vnd);
+    byDayCategory.set(expense.spent_on, dailyGroups);
   }
-  return { total, byCategory, byDay, count: expenses.filter((item) => item.spent_on.startsWith(`${month}-`)).length };
+  return { total, byCategory, byDay, byDayCategory, count: expenses.filter((item) => item.spent_on.startsWith(`${month}-`)).length };
 }

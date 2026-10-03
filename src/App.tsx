@@ -7,7 +7,7 @@ import AmountInput from './AmountInput';
 
 const money = (amount: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(amount);
 const dateLabel = (value: string) => value.split('-').reverse().join('/');
-const PIE_COLORS = ['#e99679', '#8b78a4', '#a7bba6', '#e6ba71', '#8badb8', '#d393ac'];
+const PIE_COLORS = ['#e99679', '#8b78a4', '#a7bba6', '#e6ba71', '#8badb8', '#d393ac', '#6f98d3', '#c4a16d', '#73b5aa', '#bc83cf', '#d07c79', '#93a55c'];
 const NEW_CATEGORY = '__new_category__';
 function todayVietnam(): string {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
@@ -50,16 +50,17 @@ function App() {
   const summary = useMemo(() => summarize(items, month), [items, month]);
   const categories = [...summary.byCategory.entries()].sort((a, b) => b[1] - a[1]);
   const categoryChoices = [...new Set([...CATEGORIES, ...knownCategories, ...(form.category && !customCategory ? [form.category] : [])])];
+  const categoryColors = new Map(categories.map(([name], index) => [name, PIE_COLORS[index] ?? `hsl(${(index * 137.5) % 360} 45% 58%)`]));
   let piePosition = 0;
-  const pieGradient = categories.map(([, amount], index) => {
+  const pieGradient = categories.map(([name, amount]) => {
     const start = piePosition;
     piePosition += amount / summary.total * 100;
-    return `${PIE_COLORS[index % PIE_COLORS.length]} ${start}% ${piePosition}%`;
+    return `${categoryColors.get(name)} ${start}% ${piePosition}%`;
   }).join(', ');
   const daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => {
     const key = month + '-' + String(i + 1).padStart(2, '0');
-    return { day: i + 1, amount: summary.byDay.get(key) ?? 0 };
+    return { day: i + 1, amount: summary.byDay.get(key) ?? 0, groups: categories.filter(([name]) => summary.byDayCategory.get(key)?.has(name)).map(([name]) => ({ name, amount: summary.byDayCategory.get(key)!.get(name)! })) };
   });
   const maxDay = Math.max(1, ...days.map(d => d.amount));
   const maxCategory = Math.max(1, ...categories.map(c => c[1]));
@@ -231,13 +232,18 @@ function App() {
         </section>
         <section className="panel chart-panel" id="charts">
           <div className="section-head"><div><p className="eyebrow">PHÂN BỔ CHI TIÊU</p><h2>Chi theo nhóm</h2></div><span className="head-icon">◔</span></div>
-          {categories.length ? <div className="category-chart"><div className="pie-wrap"><div className="pie-chart" role="img" aria-label={'Biểu đồ tròn chi tiêu theo nhóm trong ' + monthLabel(month)} style={{ background: `conic-gradient(${pieGradient})` }}><div className="pie-center"><small>Tổng đã chi</small><strong>{money(summary.total)}</strong></div></div></div>{categories.map(([name, amount], i) => <div className="category-row" key={name}><div className="category-line"><span><i className={'category-dot color-' + (i % 6)} />{name}</span><strong>{Math.round(amount / summary.total * 100)}% · {money(amount)}</strong></div><div className="bar-track"><div className={'bar-fill color-' + (i % 6)} style={{ width: Math.max(2, amount / maxCategory * 100) + '%' }} /></div></div>)}</div> : <EmptyChart />}
+          {categories.length ? <div className="category-chart"><div className="pie-wrap"><div className="pie-chart" role="img" aria-label={'Biểu đồ tròn chi tiêu theo nhóm trong ' + monthLabel(month)} style={{ background: `conic-gradient(${pieGradient})` }}><div className="pie-center"><small>Tổng đã chi</small><strong>{money(summary.total)}</strong></div></div></div>{categories.map(([name, amount]) => <div className="category-row" key={name}><div className="category-line"><span><i className="category-dot" style={{ backgroundColor: categoryColors.get(name) }} />{name}</span><strong>{Math.round(amount / summary.total * 100)}% · {money(amount)}</strong></div><div className="bar-track"><div className="bar-fill" style={{ backgroundColor: categoryColors.get(name), width: Math.max(2, amount / maxCategory * 100) + '%' }} /></div></div>)}</div> : <EmptyChart />}
         </section>
       </div>
       <section className="panel daily-panel">
         <div className="section-head"><div><p className="eyebrow">NHỊP CHI TIÊU</p><h2>Chi theo ngày</h2></div><span className="head-icon">▥</span></div>
-        {summary.count ? <div className="daily-scroll"><div className="daily-chart" role="group" aria-label={'Biểu đồ chi tiêu theo ngày trong ' + monthLabel(month)}>{days.map(d => <button type="button" className={'day-column' + (selectedDay === d.day ? ' selected' : '')} key={d.day} aria-label={'Ngày ' + d.day + ': ' + money(d.amount)} aria-pressed={selectedDay === d.day} onClick={() => setSelectedDay(d.day)}><div className="day-bar-space"><div className={'day-bar' + (d.amount ? ' active' : '')} style={{ height: d.amount ? Math.max(8, d.amount / maxDay * 100) + '%' : '3px' }} /></div><span>{d.day}</span></button>)}</div></div> : <EmptyChart />}
-        {summary.count > 0 && <p className="day-detail" aria-live="polite">{selectedDay ? 'Ngày ' + selectedDay + ': ' + money(days[selectedDay - 1].amount) : 'Chạm vào cột để xem số tiền của ngày đó.'}</p>}
+        {summary.count > 0 && <div className="daily-legend" aria-label="Chú thích nhóm chi tiêu">{categories.map(([name]) => <span key={name}><i className="category-dot" style={{ backgroundColor: categoryColors.get(name) }} />{name}</span>)}</div>}
+        {summary.count ? <div className="daily-scroll"><div className="daily-chart" role="group" aria-label={'Biểu đồ chi tiêu theo ngày và nhóm trong ' + monthLabel(month)}>{days.map(d => {
+          const label = 'Ngày ' + d.day + ': ' + money(d.amount) + (d.groups.length ? '. ' + d.groups.map(group => group.name + ': ' + money(group.amount)).join(', ') : ' — Không có khoản chi');
+          return <button type="button" className={'day-column' + (selectedDay === d.day ? ' selected' : '')} key={d.day} aria-label={label} title={label} aria-pressed={selectedDay === d.day} onClick={() => setSelectedDay(d.day)}><div className="day-bar-space"><div className={'day-bar' + (d.amount ? ' active' : '')} style={{ height: d.amount ? Math.max(8, d.amount / maxDay * 100) + '%' : '3px' }}>{d.groups.map(group => <span key={group.name} className="day-segment" style={{ height: group.amount / d.amount * 100 + '%', backgroundColor: categoryColors.get(group.name) }} />)}</div></div><span>{d.day}</span></button>;
+        })}</div></div> : <EmptyChart />}
+        {summary.count > 0 && <div className="day-detail" aria-live="polite">{selectedDay ? <><strong>Ngày {selectedDay}: {money(days[selectedDay - 1].amount)}</strong><div className="day-breakdown">{days[selectedDay - 1].groups.length ? days[selectedDay - 1].groups.map(group => <span key={group.name}><i className="category-dot" style={{ backgroundColor: categoryColors.get(group.name) }} />{group.name}: <b>{money(group.amount)}</b></span>) : <span>Không có khoản chi trong ngày này.</span>}</div></> : 'Chạm vào cột để xem số tiền theo nhóm của ngày đó.'}</div>}
+
       </section>
       <section className="panel history-panel" id="history">
         <div className="section-head"><div><p className="eyebrow">LỊCH SỬ</p><h2>Các khoản đã ghi <span className="count-pill">{summary.count}</span></h2></div></div>
