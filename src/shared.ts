@@ -72,3 +72,16 @@ export function summarize(expenses: Expense[], month: string) {
   }
   return { total, byCategory, byDay, byDayCategory, byDayCategoryCount, count: expenses.filter((item) => item.spent_on.startsWith(`${month}-`)).length };
 }
+
+
+export type ExpenseSortField = 'spent_on' | 'description' | 'category' | 'amount_vnd';
+export type SortDirection = 'asc' | 'desc';
+
+export function sortExpenses(expenses: Expense[], field: ExpenseSortField, direction: SortDirection): Expense[] {
+  return [...expenses].sort((a, b) => {
+    const comparison = field === 'amount_vnd'
+      ? a.amount_vnd - b.amount_vnd
+      : a[field].localeCompare(b[field], 'vi', { numeric: true, sensitivity: 'base' });
+    return direction === 'asc' ? comparison : -comparison;
+  });
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatVndInput, isValidDate, monthBounds, sortDailyCategories, summarize, validateExpense, type Expense } from './shared';
+import { formatVndInput, isValidDate, monthBounds, sortDailyCategories, sortExpenses, summarize, validateExpense, type Expense } from './shared';
 
 const sample: Expense[] = [
   { id: 'a', spent_on: '2026-09-02', amount_vnd: 50000, description: 'Cà phê', category: 'Ăn uống', created_at: '' },
@@ -45,5 +45,29 @@ describe('expense data', () => {
     expect(result.count).toBe(3);
     expect(result.byDay.get('2026-09-02')).toBe(70000);
     expect(result.byCategory.get('Ăn uống')).toBe(70000);
+  });
+});
+
+
+describe('history sorting', () => {
+  it('orders dates across months, preserves ties and leaves the original data unchanged', () => {
+    const original = [...sample];
+    expect(sortExpenses(sample, 'spent_on', 'desc').map(item => item.id)).toEqual(['d', 'c', 'a', 'b']);
+    expect(sortExpenses(sample, 'spent_on', 'asc').map(item => item.id)).toEqual(['a', 'b', 'c', 'd']);
+    expect(sample).toEqual(original);
+  });
+  it('sorts amounts numerically in both directions', () => {
+    expect(sortExpenses(sample, 'amount_vnd', 'asc').map(item => item.id)).toEqual(['b', 'a', 'd', 'c']);
+    expect(sortExpenses(sample, 'amount_vnd', 'desc').map(item => item.id)).toEqual(['c', 'd', 'a', 'b']);
+  });
+  it('sorts Vietnamese descriptions and categories in both directions', () => {
+    expect(sortExpenses(sample, 'description', 'asc').map(item => item.id)).toEqual(['b', 'a', 'd', 'c']);
+    expect(sortExpenses(sample, 'description', 'desc').map(item => item.id)).toEqual(['c', 'd', 'a', 'b']);
+    expect(sortExpenses(sample, 'category', 'asc').map(item => item.id)).toEqual(['a', 'b', 'c', 'd']);
+    expect(sortExpenses(sample, 'category', 'desc').map(item => item.id)).toEqual(['d', 'c', 'a', 'b']);
+  });
+  it('works on filtered results and empty lists', () => {
+    expect(sortExpenses(sample.filter(item => item.category === 'Ăn uống'), 'amount_vnd', 'asc').map(item => item.id)).toEqual(['b', 'a']);
+    expect(sortExpenses([], 'spent_on', 'desc')).toEqual([]);
   });
 });
