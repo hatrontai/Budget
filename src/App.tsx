@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { CATEGORIES, formatVndInput, sortDailyCategories, sortExpenses, summarize, type ExpenseSortField, type SortDirection, type Expense, type ExpenseInput } from './shared';
-import { connectGoogleDrive, disconnectGoogleDrive, listExpenses, addExpense, updateExpense, deleteExpense, DriveAuthError } from './googleDrive';
+import { connectGoogleDrive, disconnectGoogleDrive, listExpenses, addExpense, updateExpense, deleteExpense, listBudgets, DriveAuthError } from './googleDrive';
 import './style.css';
 import logo from './assets/logo.svg';
 import AmountInput from './AmountInput';
+import BudgetPanel from './BudgetPanel';
+import { effectiveBudget, projectedSpend, type Budget } from './budgets';
 
 const money = (amount: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(amount);
 const dateLabel = (value: string) => value.split('-').reverse().join('/');
@@ -41,7 +43,11 @@ function App() {
   const [driveUrl, setDriveUrl] = useState('');
   const [month, setMonth] = useState(today.slice(0, 7));
   const [refreshTick, setRefreshTick] = useState(0);
-  const [items, setItems] = useState<Expense[]>([]);
+  const [allItems, setAllItems] = useState<Expense[]>([]);
+  const items = allItems.filter(item => item.spent_on.startsWith(month + '-'));
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [budgetError, setBudgetError] = useState('');
+  const [budgetLoading, setBudgetLoading] = useState(true);
   const [form, setForm] = useState<ExpenseInput>(blank);
   const [amountText, setAmountText] = useState('');
   const [customCategory, setCustomCategory] = useState(false);
@@ -84,6 +90,9 @@ function App() {
     return { day: i + 1, amount: summary.byDay.get(key) ?? 0, groups };
   });
   const maxDay = Math.max(1, ...days.map(d => d.amount));
+  const previewBudget = effectiveBudget(budgets, form.category.trim(), form.spent_on.slice(0, 7));
+  const previewTotal = projectedSpend(allItems, form, editing);
+  const previewOver = !budgetLoading && !budgetError && !loading && form.amount_vnd > 0 && previewBudget?.limit_vnd && previewTotal > previewBudget.limit_vnd ? previewTotal - previewBudget.limit_vnd : 0;
   const maxCategory = Math.max(1, ...categories.map(c => c[1]));
 
   function report(cause: unknown) {
@@ -95,9 +104,13 @@ function App() {
     let active = true;
     setLoading(true);
     listExpenses()
-      .then(result => { if (active) { setItems(result.filter(item => item.spent_on.startsWith(month + '-'))); setKnownCategories([...new Set(result.map(item => item.category))]); setError(''); } })
+      .then(result => { if (active) { setAllItems(result); setKnownCategories([...new Set(result.map(item => item.category))]); setError(''); } })
       .catch(cause => { if (active) report(cause); })
       .finally(() => { if (active) setLoading(false); });
+    setBudgetLoading(true);
+    listBudgets().then(result => { if (active) { setBudgets(result); setBudgetError(''); } })
+      .catch(cause => { if (active) { setBudgetError((cause as Error).message); if (cause instanceof DriveAuthError) report(cause); } })
+      .finally(() => { if (active) setBudgetLoading(false); });
     return () => { active = false; };
   }, [unlocked, month, refreshTick]);
   useEffect(() => {
@@ -150,7 +163,7 @@ function App() {
       setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); setMessage(editing ? 'Đã cập nhật khoản chi.' : 'Đã ghi khoản chi.');
       if (targetMonth !== month) setMonth(targetMonth);
       else {
-        setItems(await listExpenses(month));
+        setAllItems(await listExpenses());
       }
     } catch (e) { report(e); }
     finally { setBusy(false); }
@@ -169,7 +182,7 @@ function App() {
     setBusy(true); setError(''); setMessage('');
     try {
       await deleteExpense(item.id);
-      setItems(current => current.filter(entry => entry.id !== item.id));
+      setAllItems(current => current.filter(entry => entry.id !== item.id));
       if (editing === item.id) { setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); }
       setMessage('Đã xóa khoản chi.');
     } catch (e) { report(e); }
@@ -189,7 +202,7 @@ function App() {
   }
   function logout() {
     clearHistoryFilters();
-    disconnectGoogleDrive(); setUnlocked(false); setDriveUrl(''); setItems([]); setKnownCategories([]); setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); setMessage(''); setError('');
+    disconnectGoogleDrive(); setUnlocked(false); setDriveUrl(''); setAllItems([]); setBudgets([]); setBudgetError(''); setBudgetLoading(true); setKnownCategories([]); setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); setMessage(''); setError('');
   }
 
   if (!unlocked) return <main className="lock-shell">
@@ -240,6 +253,7 @@ function App() {
         <article className="metric-card"><span className="metric-icon lavender">▤</span><span>Khoản chi</span><strong>{summary.count}</strong><small>lần ghi trong tháng</small></article>
         <article className="metric-card"><span className="metric-icon peach">◴</span><span>Ngày chi nhiều nhất</span><strong>{summary.byDay.size ? dateLabel([...summary.byDay.entries()].sort((a, b) => b[1] - a[1])[0][0]) : '—'}</strong><small>{summary.byDay.size ? money(Math.max(...summary.byDay.values())) : 'Chưa có dữ liệu'}</small></article>
       </div>
+      <BudgetPanel month={month} categories={[...new Set([...CATEGORIES, ...knownCategories])]} budgets={budgets} spending={summary.byCategory} loading={budgetLoading || loading} error={budgetError} onChange={result => { setBudgets(result); setBudgetError(''); }} onError={cause => { if (cause instanceof DriveAuthError) report(cause); }} />
       <div className="content-grid">
         <section className="panel entry-panel" id="entry-form">
           <div className="section-head"><div><p className="eyebrow">GHI CHÉP</p><h2>{editing ? 'Sửa khoản chi' : 'Thêm khoản chi'}</h2></div><span className="head-icon">＋</span></div>
@@ -249,6 +263,8 @@ function App() {
             <label>Số tiền (VND)<AmountInput value={amountText} onChange={value => { setAmountText(value); setForm(current => ({ ...current, amount_vnd: Number(value.replaceAll('.', '')) })); }} /></label>
             <label className="wide">Đã chi cho việc gì?<input type="text" maxLength={160} placeholder="Ví dụ: Cà phê buổi sáng" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required /></label>
             <label className="wide">Nhóm chi tiêu<select value={customCategory ? NEW_CATEGORY : form.category} onChange={e => { const value = e.target.value; setCustomCategory(value === NEW_CATEGORY); setForm({ ...form, category: value === NEW_CATEGORY ? '' : value }); }}>{categoryChoices.map(c => <option key={c} value={c}>{c}</option>)}<option value={NEW_CATEGORY}>＋ Nhập nhóm mới…</option></select>{customCategory && <input type="text" maxLength={40} placeholder="Tên nhóm mới" aria-label="Tên nhóm mới" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} required />}</label>
+            {previewOver > 0 && <p className="alert budget-warning wide" role="status">Khoản chi này sẽ khiến nhóm {form.category} trong tháng {form.spent_on.slice(0, 7).split('-').reverse().join('/')} vượt hạn mức {money(previewOver)}. Bạn vẫn có thể lưu khoản chi.</p>}
+            {budgetError && <p className="budget-hint wide">Chưa kiểm tra được hạn mức. Bạn vẫn có thể ghi khoản chi và làm mới để tải lại hạn mức.</p>}
             <div className="form-actions wide"><button type="submit" className="button primary" disabled={busy}>{busy ? 'Đang lưu…' : editing ? 'Lưu thay đổi' : '＋ Ghi khoản chi'}</button>{editing && <button type="button" className="button secondary" onClick={() => { setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); }}>Hủy sửa</button>}</div>
           </form>
         </section>

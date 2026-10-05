@@ -54,3 +54,54 @@ describe('Google Sheets storage', () => {
     expect(calls.some(call => call.method === 'POST' && call.url.includes(':append') && call.body?.includes('42000'))).toBe(true);
   });
 });
+
+it('persists budgets across sessions, updates keys, removes overrides and surfaces failed writes', async () => {
+  vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client-id');
+  vi.stubGlobal('window', { google: { accounts: { oauth2: { initTokenClient: ({ callback }: { callback: (value: unknown) => void }) => ({ requestAccessToken: () => callback({ access_token: 'test-token', expires_in: 3600 }) }) } } } });
+  let exists = false;
+  let failWrites = false;
+  let rows: Array<Array<string | number>> = [];
+  const calls: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
+    calls.push(url);
+    let data: unknown = {};
+    const range = decodeURIComponent(url);
+    if (url.includes('/drive/v3/files?')) data = { files: [{ id: 'shared-sheet' }] };
+    else if (url.includes('fields=sheets.properties')) data = { sheets: [{ properties: { sheetId: 0, title: 'ChiTieu' } }, ...(exists ? [{ properties: { sheetId: 1, title: 'HanMuc' } }] : [])] };
+    else if (url.includes(':batchUpdate')) exists = true;
+    else if (range.includes('ChiTieu!A1:G1')) data = { values: [['id', 'spent_on', 'amount_vnd', 'description', 'category', 'created_at', 'deleted_at']] };
+    else if (range.includes('HanMuc!A1:D1')) data = { values: [['category', 'month', 'mode', 'limit_vnd']] };
+    else if (range.includes('HanMuc!A2:D') && !init.method) data = { values: rows };
+    else if (init.method && range.includes('HanMuc!')) {
+      if (failWrites) return new Response(JSON.stringify({ error: { message: 'Write failed' } }), { status: 500 });
+      const values = JSON.parse(init.body as string).values[0];
+      if (url.includes(':append')) rows.push(values);
+      else {
+        const row = Number(range.match(/HanMuc!A(\d+):D/)![1]);
+        rows[row - 2] = values;
+      }
+    } else if (url.includes(':batchClear')) {
+      for (const range of JSON.parse(init.body as string).ranges) {
+        const row = Number(range.match(/!A(\d+):D/)[1]);
+        rows[row - 2] = [];
+      }
+    }
+    return new Response(JSON.stringify(data), { status: 200 });
+  }));
+  const drive = await import('./googleDrive');
+  await drive.connectGoogleDrive();
+  expect(await drive.listBudgets()).toEqual([]);
+  const base = { category: 'Ăn uống', month: '2026-10', mode: 'default' as const, limit_vnd: 3000000 };
+  await drive.saveBudget(base);
+  await drive.saveBudget({ ...base, limit_vnd: 4000000 });
+  await drive.saveBudget({ ...base, mode: 'override', limit_vnd: 0 });
+  drive.disconnectGoogleDrive();
+  await drive.connectGoogleDrive();
+  expect(await drive.listBudgets()).toEqual([{ ...base, limit_vnd: 4000000 }, { ...base, mode: 'override', limit_vnd: 0 }]);
+  await drive.removeBudgetOverride(base.category, base.month);
+  expect(await drive.listBudgets()).toEqual([{ ...base, limit_vnd: 4000000 }]);
+  failWrites = true;
+  await expect(drive.saveBudget({ ...base, limit_vnd: 1 })).rejects.toThrow('Write failed');
+  expect(await drive.listBudgets()).toEqual([{ ...base, limit_vnd: 4000000 }]);
+  expect(calls.some(url => decodeURIComponent(url).includes('HanMuc!'))).toBe(true);
+});

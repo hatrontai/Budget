@@ -1,5 +1,9 @@
 import { validateExpense, type Expense, type ExpenseInput } from './shared';
 
+import { validateBudget, type Budget } from './budgets';
+
+const BUDGET_SHEET = 'HanMuc';
+const BUDGET_HEADER = ['category', 'month', 'mode', 'limit_vnd'];
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const SHEET = 'ChiTieu';
 const HEADER = ['id', 'spent_on', 'amount_vnd', 'description', 'category', 'created_at', 'deleted_at'];
@@ -86,6 +90,23 @@ async function ensureSpreadsheet(id: string): Promise<void> {
   }
 }
 
+async function ensureBudgetSheet(id: string): Promise<void> {
+  const details = await googleRequest<{ sheets?: Array<{ properties: { title: string } }> }>(
+    'https://sheets.googleapis.com/v4/spreadsheets/' + id + '?fields=sheets.properties(title)',
+  );
+  if (!details.sheets?.some(sheet => sheet.properties.title === BUDGET_SHEET)) {
+    await googleRequest('https://sheets.googleapis.com/v4/spreadsheets/' + id + ':batchUpdate', {
+      method: 'POST', body: JSON.stringify({ requests: [{ addSheet: { properties: { title: BUDGET_SHEET } } }] }),
+    });
+  }
+  const current = await googleRequest<{ values?: string[][] }>(rangeUrl(id, BUDGET_SHEET + '!A1:D1'));
+  if (JSON.stringify(current.values?.[0]) !== JSON.stringify(BUDGET_HEADER)) {
+    await googleRequest(rangeUrl(id, BUDGET_SHEET + '!A1:D1') + '?valueInputOption=RAW', {
+      method: 'PUT', body: JSON.stringify({ values: [BUDGET_HEADER] }),
+    });
+  }
+}
+
 export async function connectGoogleDrive(): Promise<string> {
   await authorize();
   const query = "appProperties has { key = 'so_chi_tieu' and value = 'v1' } and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false";
@@ -145,5 +166,37 @@ export async function deleteExpense(id: string): Promise<void> {
   if (!found) throw new Error('Không tìm thấy khoản chi. Hãy tải lại dữ liệu.');
   await googleRequest(rangeUrl(spreadsheetId, SHEET + '!G' + found.row) + '?valueInputOption=RAW', {
     method: 'PUT', body: JSON.stringify({ values: [[new Date().toISOString()]] }),
+  });
+}
+
+
+async function readBudgetRows(): Promise<Array<{ row: number; budget: Budget }>> {
+  if (!spreadsheetId) throw new DriveAuthError('Hãy kết nối lại với Google Drive.');
+  await ensureBudgetSheet(spreadsheetId);
+  const data = await googleRequest<{ values?: Array<Array<string | number>> }>(rangeUrl(spreadsheetId, BUDGET_SHEET + '!A2:D') + '?valueRenderOption=UNFORMATTED_VALUE');
+  const rows: Array<{ row: number; budget: Budget }> = [];
+  for (const [index, values] of (data.values ?? []).entries()) {
+    if (!values[0] || values[3] === undefined || values[3] === '') continue;
+    const budget: Budget = { category: String(values[0]).trim(), month: String(values[1] ?? ''), mode: String(values[2]) as Budget['mode'], limit_vnd: Number(values[3]) };
+    if (validateBudget(budget)) rows.push({ row: index + 2, budget });
+  }
+  return rows;
+}
+export async function listBudgets(): Promise<Budget[]> { return (await readBudgetRows()).map(item => item.budget); }
+export async function saveBudget(input: Budget): Promise<void> {
+  if (!validateBudget(input)) throw new Error('Hạn mức phải là số nguyên VND từ 0 đến 1.000.000.000.000 và có nhóm, tháng hợp lệ.');
+  const budget = { ...input, category: input.category.trim() };
+  const rows = await readBudgetRows();
+  const found = rows.filter(item => item.budget.category === budget.category && item.budget.month === budget.month && item.budget.mode === budget.mode).at(-1);
+  const range = found ? BUDGET_SHEET + '!A' + found.row + ':D' + found.row : BUDGET_SHEET + '!A:D';
+  await googleRequest(rangeUrl(spreadsheetId, range) + (found ? '?valueInputOption=RAW' : ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS'), {
+    method: found ? 'PUT' : 'POST', body: JSON.stringify({ values: [[budget.category, budget.month, budget.mode, budget.limit_vnd]] }),
+  });
+}
+export async function removeBudgetOverride(category: string, month: string): Promise<void> {
+  const rows = (await readBudgetRows()).filter(item => item.budget.category === category && item.budget.month === month && item.budget.mode === 'override');
+  if (!rows.length) return;
+  await googleRequest('https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values:batchClear', {
+    method: 'POST', body: JSON.stringify({ ranges: rows.map(item => BUDGET_SHEET + '!A' + item.row + ':D' + item.row) }),
   });
 }

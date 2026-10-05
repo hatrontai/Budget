@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { formatVndInput } from './shared';
 
-export default function AmountInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export default function AmountInput({ value, onChange, label = 'Số tiền (VND)', disabled = false }: { value: string; onChange: (value: string) => void; label?: string; disabled?: boolean }) {
   const [focused, setFocused] = useState(false);
   const formatted = formatVndInput(value);
   return <>
     <input type="text" inputMode="numeric" maxLength={focused ? 13 : 17}
-      aria-label="Số tiền (VND)" autoComplete="off" placeholder="Ví dụ: 2500"
+      aria-label={label} disabled={disabled} autoComplete="off" placeholder="Ví dụ: 2500"
       value={focused ? value : formatted}
       onFocus={event => { setFocused(true); onChange(event.currentTarget.value.replace(/\D/g, '')); }}
       onChange={event => onChange(event.currentTarget.value)}

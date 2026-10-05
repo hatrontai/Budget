@@ -155,3 +155,30 @@ img.brand-mark{display:block;flex-shrink:0;object-fit:cover;background:#f1e9e2;b
   .history-sort-controls label{font-size:13px}
   .history-sort-controls select{width:100%;min-width:0;height:52px;padding:0 8px;font-size:16px;border-radius:12px}
 }
+
+.budget-panel{margin-bottom:20px}
+.budget-panel>.section-head{gap:14px;flex-wrap:wrap}
+.budget-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.budget-card{border:1px solid #eee7ee;border-radius:14px;padding:16px;min-width:0}
+.budget-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.budget-card-head>strong{overflow-wrap:anywhere}
+.budget-card-head button{min-width:44px;min-height:44px;flex-shrink:0}
+.budget-card p{font-size:13px;color:#796c86;margin:8px 0;line-height:1.5;overflow-wrap:anywhere}
+.budget-card p:last-child{margin-bottom:0}
+.budget-scope{display:block;color:#95869c;margin-top:3px}
+.budget-track{height:8px;overflow:hidden;border-radius:8px;background:#f1edf2;margin-top:14px}
+.budget-track>div{height:100%;background:#789579}
+.budget-card .budget-status{font-weight:700;color:#526d53}
+.budget-near .budget-track>div,.budget-reached .budget-track>div{background:#c89b38}
+.budget-near .budget-status,.budget-reached .budget-status{color:#8a651b}
+.budget-over .budget-track>div{background:#ce746a}
+.budget-over .budget-status{color:#a44841}
+.budget-none .budget-status{color:#95869c}
+.budget-form{border-top:1px solid #eee7ee;padding-top:20px;margin-top:20px}
+.budget-form-title{font-size:14px;font-weight:700;margin:0;color:#514164}
+.budget-hint{font-size:13px;color:#796c86;line-height:1.5;margin:0}
+.budget-warning{background:#fff4df;color:#8a651b;margin:0;line-height:1.5}
+.budget-form .form-actions{flex-wrap:wrap}
+.budget-panel>.alert{margin:16px 0 0}
+@media(max-width:800px){.budget-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.budget-grid{grid-template-columns:minmax(0,1fr)}.budget-card{padding:16px}.budget-form .button{min-height:52px}.budget-panel>.section-head .button{min-height:48px}}

@@ -49,3 +49,11 @@ Trên điện thoại, thanh điều hướng dưới cùng mở nhanh Tổng qu
 - Mỗi lần mở lại trang, bạn có thể cần bấm kết nối Google vì mã truy cập Google chỉ được giữ tạm trong bộ nhớ trình duyệt. Ứng dụng không lưu mật khẩu hay token lên GitHub.
 - Nếu ứng dụng tạo hơn một bảng do nhiều thiết bị kết nối lần đầu cùng lúc, nó dùng bảng được tạo sớm nhất. Hãy giữ một bản và chỉ xóa bản còn lại sau khi kiểm tra dữ liệu.
 
+
+## Hạn mức theo nhóm
+
+Phần **Hạn mức theo nhóm** nằm dưới tổng quan tháng. Bấm **Đặt hạn mức** hoặc **Sửa** tại nhóm, nhập số tiền VND và chọn **Từ tháng này trở đi** hoặc **Chỉ tháng này**. Mức mặc định kế thừa sang tháng sau, giữ nguyên các tháng trước và không chuyển ngân sách dư. Mức riêng ưu tiên trong đúng tháng đã chọn; **Dùng lại mức mặc định** xóa mức riêng. **Bỏ hạn mức** tắt giới hạn theo phạm vi đang chọn.
+
+Ứng dụng hiển thị đã chi, còn lại hoặc số tiền vượt; từ 80% cảnh báo sắp chạm, đúng 100% báo đã chạm, trên 100% báo vượt. Cảnh báo trong biểu mẫu tính cả khoản sắp thêm hoặc sửa, nhưng vẫn cho lưu chi tiêu thực tế. Bộ lọc lịch sử không ảnh hưởng tổng dùng để tính hạn mức.
+
+Cấu hình nằm trong tab **HanMuc** của cùng Google Sheets, gồm `category`, `month`, `mode`, `limit_vnd`. Tab được tạo khi tải hạn mức lần đầu; giá trị 0 biểu thị không áp dụng hạn mức. Các thiết bị kết nối cùng tài khoản dùng chung cấu hình; bấm làm mới hoặc quay lại tab để tải thay đổi. Nếu không đọc/lưu được hạn mức, ứng dụng hiển thị lỗi để thử lại.
