@@ -105,3 +105,45 @@ it('persists budgets across sessions, updates keys, removes overrides and surfac
   expect(await drive.listBudgets()).toEqual([{ ...base, limit_vnd: 4000000 }]);
   expect(calls.some(url => decodeURIComponent(url).includes('HanMuc!'))).toBe(true);
 });
+
+it('keeps added and deleted categories across reconnects without changing expenses or budgets', async () => {
+  vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client-id');
+  vi.stubGlobal('window', { google: { accounts: { oauth2: { initTokenClient: ({ callback }: { callback: (value: unknown) => void }) => ({ requestAccessToken: () => callback({ access_token: 'test-token', expires_in: 3600 }) }) } } } });
+  let exists = false;
+  let fail = false;
+  const rows: Array<Array<string | boolean>> = [];
+  const writes: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
+    const range = decodeURIComponent(url);
+    let data: unknown = {};
+    if (url.includes('/drive/v3/files?')) data = { files: [{ id: 'sheet' }] };
+    else if (url.includes('fields=sheets.properties')) data = { sheets: [{ properties: { title: 'ChiTieu', sheetId: 0 } }, ...(exists ? [{ properties: { title: 'NhomChiTieu' } }] : [])] };
+    else if (url.includes(':batchUpdate')) exists = true;
+    else if (range.includes('ChiTieu!A1:G1')) data = { values: [['id', 'spent_on', 'amount_vnd', 'description', 'category', 'created_at', 'deleted_at']] };
+    else if (range.includes('NhomChiTieu!A2:B') && !init.method) data = { values: rows };
+    else if (init.method && range.includes('NhomChiTieu!') && !range.includes('A1:B1')) {
+      if (fail) return new Response(JSON.stringify({ error: { message: 'Write failed' } }), { status: 500 });
+      writes.push(range);
+      const values = JSON.parse(init.body as string).values[0];
+      if (url.includes(':append')) rows.push(values);
+      else rows[Number(range.match(/!A(\d+):B/)![1]) - 2] = values;
+    }
+    return new Response(JSON.stringify(data), { status: 200 });
+  }));
+  const drive = await import('./googleDrive');
+  await drive.connectGoogleDrive();
+  expect(await drive.listCategorySettings()).toEqual([]);
+  await drive.saveCategorySetting(' Du lịch ', true);
+  await drive.saveCategorySetting('Ăn uống', false);
+  drive.disconnectGoogleDrive();
+  await drive.connectGoogleDrive();
+  expect(await drive.listCategorySettings()).toEqual([{ category: 'Du lịch', active: true }, { category: 'Ăn uống', active: false }]);
+  await drive.saveCategorySetting('Ăn uống', true);
+  expect((await drive.listCategorySettings())[1].active).toBe(true);
+  expect(rows).toHaveLength(2);
+  await expect(drive.saveCategorySetting('', true)).rejects.toThrow('Tên nhóm');
+  fail = true;
+  await expect(drive.saveCategorySetting('Du lịch', false)).rejects.toThrow('Write failed');
+  expect((await drive.listCategorySettings())[0].active).toBe(true);
+  expect(writes.every(url => url.includes('NhomChiTieu!'))).toBe(true);
+});

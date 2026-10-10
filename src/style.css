@@ -182,3 +182,36 @@ img.brand-mark{display:block;flex-shrink:0;object-fit:cover;background:#f1e9e2;b
 .budget-panel>.alert{margin:16px 0 0}
 @media(max-width:800px){.budget-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.budget-grid{grid-template-columns:minmax(0,1fr)}.budget-card{padding:16px}.budget-form .button{min-height:52px}.budget-panel>.section-head .button{min-height:48px}}
+
+/* Vertical reading order and compact budget progress rows. */
+.entry-panel,.chart-panel{margin-bottom:20px}
+.budget-grid{grid-template-columns:minmax(0,1fr);gap:0}
+.budget-card{border:0;border-bottom:1px solid #eee7ee;border-radius:0;padding:16px 0}
+.budget-card:last-child{border-bottom:0}
+.budget-card-head>strong{flex:1}
+.budget-actions{display:flex;flex-wrap:wrap;gap:8px}
+.budget-card .danger{color:#b4544b}
+.budget-amounts,.budget-footer{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:#796c86}
+.budget-amounts{margin-top:4px}
+.budget-amounts strong{color:#514164}
+.budget-track{height:12px;margin-top:12px}
+.budget-track>div{border-radius:inherit;transition:width .25s}
+.budget-footer .text-button{min-height:36px}
+.category-form{margin-bottom:22px;padding:16px;background:#faf7fb;border-radius:12px}
+.history-table-scroll{max-height:376px;overflow:auto;scrollbar-gutter:stable;overscroll-behavior:contain}
+.history-table-scroll table{table-layout:fixed;min-width:760px;white-space:nowrap}
+.history-table-scroll thead{display:table-header-group;position:sticky;top:0;z-index:1;background:#fff}
+.history-table-scroll th{height:56px;padding:0 12px;border-bottom:1px solid #eee9ec}
+.history-table-scroll th:nth-child(1){width:140px}
+.history-table-scroll th:nth-child(3){width:150px}
+.history-table-scroll th:nth-child(4){width:165px}
+.history-table-scroll th:nth-child(5){width:150px}
+.history-table-scroll tbody tr{display:table-row;height:64px;padding:0}
+.history-table-scroll td{height:64px;padding:8px 12px;border-bottom:1px solid #f1edf0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.history-table-scroll .description-cell{min-width:0}
+.history-table-scroll .row-actions{display:table-cell;text-align:right}
+.history-table-scroll .row-actions button{min-height:44px;min-width:44px;margin:0 0 0 5px;font-size:12px}
+.history-table-scroll .tag{max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;white-space:nowrap}
+.history-table-scroll:focus-visible{outline:2px solid #8b739e;outline-offset:3px;border-radius:6px}
+@media(max-width:600px){.budget-actions{width:100%}.budget-actions .button{flex:1}.budget-amounts{font-size:12px}.budget-footer{font-size:12px}}
+@media(prefers-reduced-motion:reduce){.budget-track>div{transition:none}}

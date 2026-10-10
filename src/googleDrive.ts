@@ -200,3 +200,34 @@ export async function removeBudgetOverride(category: string, month: string): Pro
     method: 'POST', body: JSON.stringify({ ranges: rows.map(item => BUDGET_SHEET + '!A' + item.row + ':D' + item.row) }),
   });
 }
+
+
+export interface CategorySetting { category: string; active: boolean }
+async function readCategoryRows(): Promise<Array<CategorySetting & { row: number }>> {
+  if (!spreadsheetId) throw new DriveAuthError('Hãy kết nối lại với Google Drive.');
+  const details = await googleRequest<{ sheets?: Array<{ properties: { title: string } }> }>(
+    'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '?fields=sheets.properties(title)',
+  );
+  if (!details.sheets?.some(sheet => sheet.properties.title === 'NhomChiTieu')) {
+    await googleRequest('https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + ':batchUpdate', {
+      method: 'POST', body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'NhomChiTieu' } } }] }),
+    });
+    await googleRequest(rangeUrl(spreadsheetId, 'NhomChiTieu!A1:B1') + '?valueInputOption=RAW', {
+      method: 'PUT', body: JSON.stringify({ values: [['category', 'active']] }),
+    });
+  }
+  const data = await googleRequest<{ values?: Array<Array<string | boolean>> }>(rangeUrl(spreadsheetId, 'NhomChiTieu!A2:B') + '?valueRenderOption=UNFORMATTED_VALUE');
+  return (data.values ?? []).flatMap((values, index) => values[0] ? [{ row: index + 2, category: String(values[0]).trim(), active: String(values[1]).toLowerCase() === 'true' }] : []);
+}
+export async function listCategorySettings(): Promise<CategorySetting[]> {
+  return (await readCategoryRows()).map(({ category, active }) => ({ category, active }));
+}
+export async function saveCategorySetting(category: string, active: boolean): Promise<void> {
+  category = category.trim();
+  if (!category || category.length > 40) throw new Error('Tên nhóm phải có từ 1 đến 40 ký tự.');
+  const found = (await readCategoryRows()).filter(item => item.category === category).at(-1);
+  const range = found ? 'NhomChiTieu!A' + found.row + ':B' + found.row : 'NhomChiTieu!A:B';
+  await googleRequest(rangeUrl(spreadsheetId, range) + (found ? '?valueInputOption=RAW' : ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS'), {
+    method: found ? 'PUT' : 'POST', body: JSON.stringify({ values: [[category, active]] }),
+  });
+}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { CATEGORIES, formatVndInput, sortDailyCategories, sortExpenses, summarize, type ExpenseSortField, type SortDirection, type Expense, type ExpenseInput } from './shared';
-import { connectGoogleDrive, disconnectGoogleDrive, listExpenses, addExpense, updateExpense, deleteExpense, listBudgets, DriveAuthError } from './googleDrive';
+import { connectGoogleDrive, disconnectGoogleDrive, listExpenses, addExpense, updateExpense, deleteExpense, listBudgets, listCategorySettings, saveCategorySetting, type CategorySetting, DriveAuthError } from './googleDrive';
 import './style.css';
 import logo from './assets/logo.svg';
 import AmountInput from './AmountInput';
@@ -45,6 +45,7 @@ function App() {
   const [refreshTick, setRefreshTick] = useState(0);
   const [allItems, setAllItems] = useState<Expense[]>([]);
   const items = allItems.filter(item => item.spent_on.startsWith(month + '-'));
+  const [categorySettings, setCategorySettings] = useState<CategorySetting[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [budgetError, setBudgetError] = useState('');
   const [budgetLoading, setBudgetLoading] = useState(true);
@@ -75,7 +76,8 @@ function App() {
   function clearHistoryFilters() { setHistoryCategory(''); setHistoryDate(''); }
   const summary = useMemo(() => summarize(items, month), [items, month]);
   const categories = [...summary.byCategory.entries()].sort((a, b) => b[1] - a[1]);
-  const categoryChoices = [...new Set([...CATEGORIES, ...knownCategories, ...(form.category && !customCategory ? [form.category] : [])])];
+  const activeCategories = [...new Set([...CATEGORIES, ...knownCategories, ...budgets.map(item => item.category), ...categorySettings.map(item => item.category)])].filter(name => categorySettings.filter(item => item.category === name).at(-1)?.active !== false);
+  const categoryChoices = [...new Set([...activeCategories, ...(editing && form.category ? [form.category] : [])])];
   const categoryColors = new Map(categories.map(([name], index) => [name, PIE_COLORS[index] ?? `hsl(${(index * 137.5) % 360} 45% 58%)`]));
   let piePosition = 0;
   const pieGradient = categories.map(([name, amount]) => {
@@ -95,6 +97,17 @@ function App() {
   const previewOver = !budgetLoading && !budgetError && !loading && form.amount_vnd > 0 && previewBudget?.limit_vnd && previewTotal > previewBudget.limit_vnd ? previewTotal - previewBudget.limit_vnd : 0;
   const maxCategory = Math.max(1, ...categories.map(c => c[1]));
 
+  useEffect(() => {
+    if (!editing && !customCategory && !budgetLoading && !budgetError && !activeCategories.includes(form.category)) {
+      setForm(current => ({ ...current, category: activeCategories[0] ?? '' }));
+      if (!activeCategories.length) setCustomCategory(true);
+    }
+  }, [categorySettings, budgets, knownCategories, budgetLoading, budgetError, editing, customCategory, form.category]);
+  async function manageCategory(name: string, active: boolean) {
+    await saveCategorySetting(name, active);
+    setCategorySettings(current => [...current.filter(item => item.category !== name), { category: name, active }]);
+  }
+
   function report(cause: unknown) {
     if (cause instanceof DriveAuthError) { disconnectGoogleDrive(); setUnlocked(false); }
     setError((cause as Error).message);
@@ -108,7 +121,7 @@ function App() {
       .catch(cause => { if (active) report(cause); })
       .finally(() => { if (active) setLoading(false); });
     setBudgetLoading(true);
-    listBudgets().then(result => { if (active) { setBudgets(result); setBudgetError(''); } })
+    Promise.all([listBudgets(), listCategorySettings()]).then(([result, settings]) => { if (active) { setBudgets(result); setCategorySettings(settings); setBudgetError(''); } })
       .catch(cause => { if (active) { setBudgetError((cause as Error).message); if (cause instanceof DriveAuthError) report(cause); } })
       .finally(() => { if (active) setBudgetLoading(false); });
     return () => { active = false; };
@@ -127,8 +140,8 @@ function App() {
     const updateSection = () => {
       frame = 0;
       let current = 'overview';
-      for (const id of ['overview', 'entry-form', 'charts', 'history', 'daily-chart']) {
-        if ((document.getElementById(id)?.getBoundingClientRect().top ?? Infinity) <= 120) current = id === 'daily-chart' ? 'charts' : id;
+      for (const id of ['overview', 'entry-form', 'daily-chart', 'budgets', 'history', 'charts']) {
+        if ((document.getElementById(id)?.getBoundingClientRect().top ?? Infinity) <= 120) current = id === 'daily-chart' || id === 'budgets' ? 'daily-chart' : id;
       }
       setMobileSection(current);
     };
@@ -156,6 +169,7 @@ function App() {
     if (!form.description.trim() || !form.category.trim()) { setError('Vui lòng nhập nội dung và nhóm chi tiêu.'); return; }
     setBusy(true);
     try {
+      if (customCategory && categorySettings.filter(item => item.category === form.category.trim()).at(-1)?.active === false) await manageCategory(form.category.trim(), true);
       if (editing) await updateExpense(editing, { ...form, amount_vnd: amount });
       else await addExpense({ ...form, amount_vnd: amount });
       setKnownCategories(current => [...new Set([...current, form.category.trim()])]);
@@ -202,7 +216,7 @@ function App() {
   }
   function logout() {
     clearHistoryFilters();
-    disconnectGoogleDrive(); setUnlocked(false); setDriveUrl(''); setAllItems([]); setBudgets([]); setBudgetError(''); setBudgetLoading(true); setKnownCategories([]); setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); setMessage(''); setError('');
+    disconnectGoogleDrive(); setUnlocked(false); setDriveUrl(''); setAllItems([]); setBudgets([]); setCategorySettings([]); setBudgetError(''); setBudgetLoading(true); setKnownCategories([]); setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); setMessage(''); setError('');
   }
 
   if (!unlocked) return <main className="lock-shell">
@@ -253,26 +267,30 @@ function App() {
         <article className="metric-card"><span className="metric-icon lavender">▤</span><span>Khoản chi</span><strong>{summary.count}</strong><small>lần ghi trong tháng</small></article>
         <article className="metric-card"><span className="metric-icon peach">◴</span><span>Ngày chi nhiều nhất</span><strong>{summary.byDay.size ? dateLabel([...summary.byDay.entries()].sort((a, b) => b[1] - a[1])[0][0]) : '—'}</strong><small>{summary.byDay.size ? money(Math.max(...summary.byDay.values())) : 'Chưa có dữ liệu'}</small></article>
       </div>
-      <BudgetPanel month={month} categories={[...new Set([...CATEGORIES, ...knownCategories])]} budgets={budgets} spending={summary.byCategory} loading={budgetLoading || loading} error={budgetError} onChange={result => { setBudgets(result); setBudgetError(''); }} onError={cause => { if (cause instanceof DriveAuthError) report(cause); }} />
-      <div className="content-grid">
-        <section className="panel entry-panel" id="entry-form">
-          <div className="section-head"><div><p className="eyebrow">GHI CHÉP</p><h2>{editing ? 'Sửa khoản chi' : 'Thêm khoản chi'}</h2></div><span className="head-icon">＋</span></div>
-          <p className="section-subtitle">Một vài giây để ghi lại điều bạn vừa chi.</p>
-          <form onSubmit={save} className="entry-form">
-            <label>Ngày chi<input type="date" value={form.spent_on} onChange={e => setForm({ ...form, spent_on: e.target.value })} required /></label>
-            <label>Số tiền (VND)<AmountInput value={amountText} onChange={value => { setAmountText(value); setForm(current => ({ ...current, amount_vnd: Number(value.replaceAll('.', '')) })); }} /></label>
-            <label className="wide">Đã chi cho việc gì?<input type="text" maxLength={160} placeholder="Ví dụ: Cà phê buổi sáng" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required /></label>
-            <label className="wide">Nhóm chi tiêu<select value={customCategory ? NEW_CATEGORY : form.category} onChange={e => { const value = e.target.value; setCustomCategory(value === NEW_CATEGORY); setForm({ ...form, category: value === NEW_CATEGORY ? '' : value }); }}>{categoryChoices.map(c => <option key={c} value={c}>{c}</option>)}<option value={NEW_CATEGORY}>＋ Nhập nhóm mới…</option></select>{customCategory && <input type="text" maxLength={40} placeholder="Tên nhóm mới" aria-label="Tên nhóm mới" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} required />}</label>
-            {previewOver > 0 && <p className="alert budget-warning wide" role="status">Khoản chi này sẽ khiến nhóm {form.category} trong tháng {form.spent_on.slice(0, 7).split('-').reverse().join('/')} vượt hạn mức {money(previewOver)}. Bạn vẫn có thể lưu khoản chi.</p>}
-            {budgetError && <p className="budget-hint wide">Chưa kiểm tra được hạn mức. Bạn vẫn có thể ghi khoản chi và làm mới để tải lại hạn mức.</p>}
-            <div className="form-actions wide"><button type="submit" className="button primary" disabled={busy}>{busy ? 'Đang lưu…' : editing ? 'Lưu thay đổi' : '＋ Ghi khoản chi'}</button>{editing && <button type="button" className="button secondary" onClick={() => { setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); }}>Hủy sửa</button>}</div>
-          </form>
-        </section>
-        <section className="panel chart-panel" id="charts">
-          <div className="section-head"><div><p className="eyebrow">PHÂN BỔ CHI TIÊU</p><h2>Chi theo nhóm</h2></div><span className="head-icon">◔</span></div>
-          {categories.length ? <div className="category-chart"><div className="pie-wrap"><div className="pie-chart" role="img" aria-label={'Biểu đồ tròn chi tiêu theo nhóm trong ' + monthLabel(month)} style={{ background: `conic-gradient(${pieGradient})` }}><div className="pie-center"><small>Tổng đã chi</small><strong>{money(summary.total)}</strong></div></div></div>{categories.map(([name, amount]) => <div className="category-row" key={name}><div className="category-line"><span><i className="category-dot" style={{ backgroundColor: categoryColors.get(name) }} />{name}</span><strong>{Math.round(amount / summary.total * 100)}% · {money(amount)}</strong></div><div className="bar-track"><div className="bar-fill" style={{ backgroundColor: categoryColors.get(name), width: Math.max(2, amount / maxCategory * 100) + '%' }} /></div></div>)}</div> : <EmptyChart />}
-        </section>
-      </div>
+      <section className="panel entry-panel" id="entry-form">
+        <div className="section-head"><div><p className="eyebrow">GHI CHÉP</p><h2>{editing ? 'Sửa khoản chi' : 'Thêm khoản chi'}</h2></div><span className="head-icon">＋</span></div>
+        <p className="section-subtitle">Một vài giây để ghi lại điều bạn vừa chi.</p>
+        <form onSubmit={save} className="entry-form">
+          <label>Ngày chi<input type="date" value={form.spent_on} onChange={e => setForm({ ...form, spent_on: e.target.value })} required /></label>
+          <label>Số tiền (VND)<AmountInput value={amountText} onChange={value => { setAmountText(value); setForm(current => ({ ...current, amount_vnd: Number(value.replaceAll('.', '')) })); }} /></label>
+          <label className="wide">Đã chi cho việc gì?<input type="text" maxLength={160} placeholder="Ví dụ: Cà phê buổi sáng" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required /></label>
+          <label className="wide">Nhóm chi tiêu<select value={customCategory ? NEW_CATEGORY : form.category} onChange={e => { const value = e.target.value; setCustomCategory(value === NEW_CATEGORY); setForm({ ...form, category: value === NEW_CATEGORY ? '' : value }); }}>{categoryChoices.map(c => <option key={c} value={c}>{c}</option>)}<option value={NEW_CATEGORY}>＋ Nhập nhóm mới…</option></select>{customCategory && <input type="text" maxLength={40} placeholder="Tên nhóm mới" aria-label="Tên nhóm mới" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} required />}</label>
+          {previewOver > 0 && <p className="alert budget-warning wide" role="status">Khoản chi này sẽ khiến nhóm {form.category} trong tháng {form.spent_on.slice(0, 7).split('-').reverse().join('/')} vượt hạn mức {money(previewOver)}. Bạn vẫn có thể lưu khoản chi.</p>}
+          {budgetError && <p className="budget-hint wide">Chưa kiểm tra được hạn mức. Bạn vẫn có thể ghi khoản chi và làm mới để tải lại hạn mức.</p>}
+          <div className="form-actions wide"><button type="submit" className="button primary" disabled={busy}>{busy ? 'Đang lưu…' : editing ? 'Lưu thay đổi' : '＋ Ghi khoản chi'}</button>{editing && <button type="button" className="button secondary" onClick={() => { setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); }}>Hủy sửa</button>}</div>
+        </form>
+      </section>
+      <section className="panel daily-panel" id="daily-chart">
+        <div className="section-head"><div><p className="eyebrow">NHỊP CHI TIÊU</p><h2>Chi theo ngày</h2></div><span className="head-icon">▥</span></div>
+        {summary.count > 0 && <div className="daily-legend" aria-label="Chú thích nhóm chi tiêu">{categories.map(([name]) => <span key={name}><i className="category-dot" style={{ backgroundColor: categoryColors.get(name) }} />{name}</span>)}</div>}
+        {summary.count ? <div className="daily-scroll"><div className="daily-chart" role="group" aria-label={'Biểu đồ chi tiêu theo ngày và nhóm trong ' + monthLabel(month)}>{days.map(d => {
+          const label = 'Ngày ' + d.day + ': ' + money(d.amount) + (d.groups.length ? '. ' + d.groups.map(group => group.name + ' (' + group.count + ' lần): ' + money(group.amount)).join(', ') : ' — Không có khoản chi');
+          return <button type="button" className={'day-column' + (selectedDay === d.day ? ' selected' : '')} key={d.day} aria-label={label} title={label} aria-pressed={selectedDay === d.day} onClick={() => setSelectedDay(d.day)}><div className="day-bar-space"><div className={'day-bar' + (d.amount ? ' active' : '')} style={{ height: d.amount ? Math.max(8, d.amount / maxDay * 100) + '%' : '3px' }}>{d.groups.map(group => <span key={group.name} className="day-segment" style={{ height: group.amount / d.amount * 100 + '%', backgroundColor: categoryColors.get(group.name) }} />)}</div></div><span>{d.day}</span></button>;
+        })}</div></div> : <EmptyChart />}
+        {summary.count > 0 && <div className="day-detail" aria-live="polite">{selectedDay ? <><strong>Ngày {selectedDay}: {money(days[selectedDay - 1].amount)}</strong><div className="day-breakdown">{days[selectedDay - 1].groups.length ? days[selectedDay - 1].groups.map(group => <span key={group.name}><i className="category-dot" style={{ backgroundColor: categoryColors.get(group.name) }} />{group.name} · {group.count} lần: <b>{money(group.amount)}</b></span>) : <span>Không có khoản chi trong ngày này.</span>}</div></> : 'Chạm vào cột để xem số tiền theo nhóm của ngày đó.'}</div>}
+
+      </section>
+      <BudgetPanel month={month} categories={activeCategories} onCategoryChange={manageCategory} budgets={budgets} spending={summary.byCategory} loading={budgetLoading || loading} error={budgetError} onChange={result => { setBudgets(result); setBudgetError(''); }} onError={cause => { if (cause instanceof DriveAuthError) report(cause); }} />
       <section className="panel history-panel" id="history">
         <div className="section-head"><div><p className="eyebrow">LỊCH SỬ</p><h2>Các khoản đã ghi <span className="count-pill">{filteredItems.length}</span></h2></div></div>
         <p className="history-tools-title">Tìm kiếm hóa đơn</p>
@@ -286,24 +304,18 @@ function App() {
           <label>Thứ tự<select value={historySortDirection} onChange={event => setHistorySortDirection(event.target.value as SortDirection)}><option value="asc">{historySortField === 'spent_on' ? 'Cũ nhất trước' : historySortField === 'amount_vnd' ? 'Thấp đến cao' : 'A → Z'}</option><option value="desc">{historySortField === 'spent_on' ? 'Mới nhất trước' : historySortField === 'amount_vnd' ? 'Cao đến thấp' : 'Z → A'}</option></select></label>
         </div>
         {!loading && historyFiltered && <p className="history-results" role="status">Tìm thấy {filteredItems.length} khoản chi · Tổng {money(filteredTotal)}</p>}
-        {loading ? <p className="empty-copy">Đang tải dữ liệu…</p> : filteredItems.length ? <div className="table-wrap"><table><thead><tr>{HISTORY_SORT_FIELDS.map(({ field, label }) => <th key={field} scope="col" aria-sort={historySortField === field ? (historySortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}><button type="button" className="table-sort-button" onClick={() => toggleHistorySort(field)} aria-label={'Sắp xếp theo ' + label.toLowerCase()}>{label}<span aria-hidden="true">{historySortField === field ? (historySortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button></th>)}<th aria-label="Thao tác" /></tr></thead><tbody>{sortedItems.map(item => <tr key={item.id}><td>{dateLabel(item.spent_on)}</td><td className="description-cell">{item.description}</td><td><span className="tag">{item.category}</span></td><td className="amount-cell">{money(item.amount_vnd)}</td><td className="row-actions"><button onClick={() => startEdit(item)} disabled={busy}>Sửa</button><button className="danger" onClick={() => remove(item)} disabled={busy}>Xóa</button></td></tr>)}</tbody></table></div> : historyFiltered ? <div className="empty-history"><span>⌕</span><strong>Không tìm thấy khoản chi phù hợp</strong><p>Thử chọn nhóm hoặc ngày khác trong {monthLabel(month).toLowerCase()}.</p><button type="button" className="button secondary" onClick={clearHistoryFilters}>Xóa bộ lọc</button></div> : <div className="empty-history"><span>✎</span><strong>Chưa có khoản chi nào</strong><p>Thêm khoản chi đầu tiên để bắt đầu theo dõi {monthLabel(month).toLowerCase()}.</p></div>}
+        {loading ? <p className="empty-copy">Đang tải dữ liệu…</p> : filteredItems.length ? <div className="table-wrap history-table-scroll" tabIndex={0} role="region" aria-label="Lịch sử chi tiêu, cuộn để xem thêm giao dịch"><table><thead><tr>{HISTORY_SORT_FIELDS.map(({ field, label }) => <th key={field} scope="col" aria-sort={historySortField === field ? (historySortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}><button type="button" className="table-sort-button" onClick={() => toggleHistorySort(field)} aria-label={'Sắp xếp theo ' + label.toLowerCase()}>{label}<span aria-hidden="true">{historySortField === field ? (historySortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button></th>)}<th aria-label="Thao tác" /></tr></thead><tbody>{sortedItems.map(item => <tr key={item.id}><td>{dateLabel(item.spent_on)}</td><td className="description-cell" title={item.description}>{item.description}</td><td><span className="tag" title={item.category}>{item.category}</span></td><td className="amount-cell">{money(item.amount_vnd)}</td><td className="row-actions"><button onClick={() => startEdit(item)} disabled={busy}>Sửa</button><button className="danger" onClick={() => remove(item)} disabled={busy}>Xóa</button></td></tr>)}</tbody></table></div> : historyFiltered ? <div className="empty-history"><span>⌕</span><strong>Không tìm thấy khoản chi phù hợp</strong><p>Thử chọn nhóm hoặc ngày khác trong {monthLabel(month).toLowerCase()}.</p><button type="button" className="button secondary" onClick={clearHistoryFilters}>Xóa bộ lọc</button></div> : <div className="empty-history"><span>✎</span><strong>Chưa có khoản chi nào</strong><p>Thêm khoản chi đầu tiên để bắt đầu theo dõi {monthLabel(month).toLowerCase()}.</p></div>}
       </section>
-      <section className="panel daily-panel" id="daily-chart">
-        <div className="section-head"><div><p className="eyebrow">NHỊP CHI TIÊU</p><h2>Chi theo ngày</h2></div><span className="head-icon">▥</span></div>
-        {summary.count > 0 && <div className="daily-legend" aria-label="Chú thích nhóm chi tiêu">{categories.map(([name]) => <span key={name}><i className="category-dot" style={{ backgroundColor: categoryColors.get(name) }} />{name}</span>)}</div>}
-        {summary.count ? <div className="daily-scroll"><div className="daily-chart" role="group" aria-label={'Biểu đồ chi tiêu theo ngày và nhóm trong ' + monthLabel(month)}>{days.map(d => {
-          const label = 'Ngày ' + d.day + ': ' + money(d.amount) + (d.groups.length ? '. ' + d.groups.map(group => group.name + ' (' + group.count + ' lần): ' + money(group.amount)).join(', ') : ' — Không có khoản chi');
-          return <button type="button" className={'day-column' + (selectedDay === d.day ? ' selected' : '')} key={d.day} aria-label={label} title={label} aria-pressed={selectedDay === d.day} onClick={() => setSelectedDay(d.day)}><div className="day-bar-space"><div className={'day-bar' + (d.amount ? ' active' : '')} style={{ height: d.amount ? Math.max(8, d.amount / maxDay * 100) + '%' : '3px' }}>{d.groups.map(group => <span key={group.name} className="day-segment" style={{ height: group.amount / d.amount * 100 + '%', backgroundColor: categoryColors.get(group.name) }} />)}</div></div><span>{d.day}</span></button>;
-        })}</div></div> : <EmptyChart />}
-        {summary.count > 0 && <div className="day-detail" aria-live="polite">{selectedDay ? <><strong>Ngày {selectedDay}: {money(days[selectedDay - 1].amount)}</strong><div className="day-breakdown">{days[selectedDay - 1].groups.length ? days[selectedDay - 1].groups.map(group => <span key={group.name}><i className="category-dot" style={{ backgroundColor: categoryColors.get(group.name) }} />{group.name} · {group.count} lần: <b>{money(group.amount)}</b></span>) : <span>Không có khoản chi trong ngày này.</span>}</div></> : 'Chạm vào cột để xem số tiền theo nhóm của ngày đó.'}</div>}
-
+      <section className="panel chart-panel" id="charts">
+        <div className="section-head"><div><p className="eyebrow">PHÂN BỔ CHI TIÊU</p><h2>Chi theo nhóm</h2></div><span className="head-icon">◔</span></div>
+        {categories.length ? <div className="category-chart"><div className="pie-wrap"><div className="pie-chart" role="img" aria-label={'Biểu đồ tròn chi tiêu theo nhóm trong ' + monthLabel(month)} style={{ background: `conic-gradient(${pieGradient})` }}><div className="pie-center"><small>Tổng đã chi</small><strong>{money(summary.total)}</strong></div></div></div>{categories.map(([name, amount]) => <div className="category-row" key={name}><div className="category-line"><span><i className="category-dot" style={{ backgroundColor: categoryColors.get(name) }} />{name}</span><strong>{Math.round(amount / summary.total * 100)}% · {money(amount)}</strong></div><div className="bar-track"><div className="bar-fill" style={{ backgroundColor: categoryColors.get(name), width: Math.max(2, amount / maxCategory * 100) + '%' }} /></div></div>)}</div> : <EmptyChart />}
       </section>
       <footer>Ghi chép đều đặn, hiểu tiền của mình hơn mỗi ngày.</footer>
     </main>
     <nav className="mobile-nav" aria-label="Điều hướng sổ chi tiêu">
       {[
         ['overview', 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z', 'Tổng quan'], ['entry-form', 'M12 4v16 M4 12h16', 'Ghi chi'],
-        ['charts', 'M12 3v9h9 M9 3.5a9 9 0 1 0 11.5 11.5 M15 3.5a9 9 0 0 1 5.5 5.5H15z', 'Biểu đồ'], ['history', 'M8 5h13 M8 12h13 M8 19h13 M3 5h.01 M3 12h.01 M3 19h.01', 'Lịch sử'],
+        ['daily-chart', 'M12 3v9h9 M9 3.5a9 9 0 1 0 11.5 11.5 M15 3.5a9 9 0 0 1 5.5 5.5H15z', 'Biểu đồ'], ['history', 'M8 5h13 M8 12h13 M8 19h13 M3 5h.01 M3 12h.01 M3 19h.01', 'Lịch sử'],
       ].map(([id, icon, label]) => <a key={id} href={'#' + id} className={mobileSection === id ? 'active' : ''} aria-current={mobileSection === id ? 'location' : undefined} onClick={() => setMobileSection(id)}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={icon}/></svg>{label}</a>)}
     </nav>
   </div>;

@@ -52,7 +52,9 @@ Trên điện thoại, thanh điều hướng dưới cùng mở nhanh Tổng qu
 
 ## Hạn mức theo nhóm
 
-Phần **Hạn mức theo nhóm** nằm dưới tổng quan tháng. Bấm **Đặt hạn mức** hoặc **Sửa** tại nhóm, nhập số tiền VND và chọn **Từ tháng này trở đi** hoặc **Chỉ tháng này**. Mức mặc định kế thừa sang tháng sau, giữ nguyên các tháng trước và không chuyển ngân sách dư. Mức riêng ưu tiên trong đúng tháng đã chọn; **Dùng lại mức mặc định** xóa mức riêng. **Bỏ hạn mức** tắt giới hạn theo phạm vi đang chọn.
+Các mục hiển thị theo thứ tự: nhập chi tiêu → biểu đồ theo ngày → hạn mức theo nhóm → lịch sử chi tiêu. Biểu đồ theo nhóm nằm sau lịch sử. Lịch sử dùng bảng với tiêu đề cố định, cuộn dọc/ngang và khung nhìn tối đa 5 giao dịch trên cả máy tính lẫn điện thoại.
+
+Phần **Hạn mức theo nhóm** dùng các hàng thanh tiến độ, luôn hiển thị thanh kể cả khi chưa đặt hạn mức. Bấm **Thêm nhóm** để tạo nhóm mới hoặc **Xóa** để ẩn nhóm khỏi hạn mức và danh sách nhập chi; lịch sử, biểu đồ và cấu hình hạn mức cũ vẫn được giữ. Thêm lại cùng tên nhóm sẽ khôi phục nhóm đó. Danh sách nhóm được đồng bộ qua tab **NhomChiTieu** (`category`, `active`) trong cùng Google Sheets. Bấm **Đặt hạn mức** hoặc **Sửa** tại nhóm, nhập số tiền VND và chọn **Từ tháng này trở đi** hoặc **Chỉ tháng này**. Mức mặc định kế thừa sang tháng sau, giữ nguyên các tháng trước và không chuyển ngân sách dư. Mức riêng ưu tiên trong đúng tháng đã chọn; **Dùng lại mức mặc định** xóa mức riêng. **Bỏ hạn mức** tắt giới hạn theo phạm vi đang chọn.
 
 Ứng dụng hiển thị đã chi, còn lại hoặc số tiền vượt; từ 80% cảnh báo sắp chạm, đúng 100% báo đã chạm, trên 100% báo vượt. Cảnh báo trong biểu mẫu tính cả khoản sắp thêm hoặc sửa, nhưng vẫn cho lưu chi tiêu thực tế. Bộ lọc lịch sử không ảnh hưởng tổng dùng để tính hạn mức.
 
