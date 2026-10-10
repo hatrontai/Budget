@@ -184,7 +184,7 @@ img.brand-mark{display:block;flex-shrink:0;object-fit:cover;background:#f1e9e2;b
 @media(max-width:600px){.budget-grid{grid-template-columns:minmax(0,1fr)}.budget-card{padding:16px}.budget-form .button{min-height:52px}.budget-panel>.section-head .button{min-height:48px}}
 
 /* Vertical reading order and compact budget progress rows. */
-.entry-panel,.chart-panel{margin-bottom:20px}
+.content-grid>.entry-panel,.content-grid>.chart-panel{margin-bottom:0;min-width:0}
 .budget-grid{grid-template-columns:minmax(0,1fr);gap:0}
 .budget-card{border:0;border-bottom:1px solid #eee7ee;border-radius:0;padding:16px 0}
 .budget-card:last-child{border-bottom:0}

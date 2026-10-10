@@ -140,8 +140,8 @@ function App() {
     const updateSection = () => {
       frame = 0;
       let current = 'overview';
-      for (const id of ['overview', 'entry-form', 'daily-chart', 'budgets', 'history', 'charts']) {
-        if ((document.getElementById(id)?.getBoundingClientRect().top ?? Infinity) <= 120) current = id === 'daily-chart' || id === 'budgets' ? 'daily-chart' : id;
+      for (const id of ['overview', 'entry-form', 'charts', 'daily-chart', 'budgets', 'history']) {
+        if ((document.getElementById(id)?.getBoundingClientRect().top ?? Infinity) <= 120) current = id === 'charts' || id === 'daily-chart' || id === 'budgets' ? 'daily-chart' : id;
       }
       setMobileSection(current);
     };
@@ -267,19 +267,25 @@ function App() {
         <article className="metric-card"><span className="metric-icon lavender">▤</span><span>Khoản chi</span><strong>{summary.count}</strong><small>lần ghi trong tháng</small></article>
         <article className="metric-card"><span className="metric-icon peach">◴</span><span>Ngày chi nhiều nhất</span><strong>{summary.byDay.size ? dateLabel([...summary.byDay.entries()].sort((a, b) => b[1] - a[1])[0][0]) : '—'}</strong><small>{summary.byDay.size ? money(Math.max(...summary.byDay.values())) : 'Chưa có dữ liệu'}</small></article>
       </div>
-      <section className="panel entry-panel" id="entry-form">
-        <div className="section-head"><div><p className="eyebrow">GHI CHÉP</p><h2>{editing ? 'Sửa khoản chi' : 'Thêm khoản chi'}</h2></div><span className="head-icon">＋</span></div>
-        <p className="section-subtitle">Một vài giây để ghi lại điều bạn vừa chi.</p>
-        <form onSubmit={save} className="entry-form">
-          <label>Ngày chi<input type="date" value={form.spent_on} onChange={e => setForm({ ...form, spent_on: e.target.value })} required /></label>
-          <label>Số tiền (VND)<AmountInput value={amountText} onChange={value => { setAmountText(value); setForm(current => ({ ...current, amount_vnd: Number(value.replaceAll('.', '')) })); }} /></label>
-          <label className="wide">Đã chi cho việc gì?<input type="text" maxLength={160} placeholder="Ví dụ: Cà phê buổi sáng" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required /></label>
-          <label className="wide">Nhóm chi tiêu<select value={customCategory ? NEW_CATEGORY : form.category} onChange={e => { const value = e.target.value; setCustomCategory(value === NEW_CATEGORY); setForm({ ...form, category: value === NEW_CATEGORY ? '' : value }); }}>{categoryChoices.map(c => <option key={c} value={c}>{c}</option>)}<option value={NEW_CATEGORY}>＋ Nhập nhóm mới…</option></select>{customCategory && <input type="text" maxLength={40} placeholder="Tên nhóm mới" aria-label="Tên nhóm mới" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} required />}</label>
-          {previewOver > 0 && <p className="alert budget-warning wide" role="status">Khoản chi này sẽ khiến nhóm {form.category} trong tháng {form.spent_on.slice(0, 7).split('-').reverse().join('/')} vượt hạn mức {money(previewOver)}. Bạn vẫn có thể lưu khoản chi.</p>}
-          {budgetError && <p className="budget-hint wide">Chưa kiểm tra được hạn mức. Bạn vẫn có thể ghi khoản chi và làm mới để tải lại hạn mức.</p>}
-          <div className="form-actions wide"><button type="submit" className="button primary" disabled={busy}>{busy ? 'Đang lưu…' : editing ? 'Lưu thay đổi' : '＋ Ghi khoản chi'}</button>{editing && <button type="button" className="button secondary" onClick={() => { setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); }}>Hủy sửa</button>}</div>
-        </form>
-      </section>
+      <div className="content-grid">
+        <section className="panel entry-panel" id="entry-form">
+          <div className="section-head"><div><p className="eyebrow">GHI CHÉP</p><h2>{editing ? 'Sửa khoản chi' : 'Thêm khoản chi'}</h2></div><span className="head-icon">＋</span></div>
+          <p className="section-subtitle">Một vài giây để ghi lại điều bạn vừa chi.</p>
+          <form onSubmit={save} className="entry-form">
+            <label>Ngày chi<input type="date" value={form.spent_on} onChange={e => setForm({ ...form, spent_on: e.target.value })} required /></label>
+            <label>Số tiền (VND)<AmountInput value={amountText} onChange={value => { setAmountText(value); setForm(current => ({ ...current, amount_vnd: Number(value.replaceAll('.', '')) })); }} /></label>
+            <label className="wide">Đã chi cho việc gì?<input type="text" maxLength={160} placeholder="Ví dụ: Cà phê buổi sáng" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required /></label>
+            <label className="wide">Nhóm chi tiêu<select value={customCategory ? NEW_CATEGORY : form.category} onChange={e => { const value = e.target.value; setCustomCategory(value === NEW_CATEGORY); setForm({ ...form, category: value === NEW_CATEGORY ? '' : value }); }}>{categoryChoices.map(c => <option key={c} value={c}>{c}</option>)}<option value={NEW_CATEGORY}>＋ Nhập nhóm mới…</option></select>{customCategory && <input type="text" maxLength={40} placeholder="Tên nhóm mới" aria-label="Tên nhóm mới" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} required />}</label>
+            {previewOver > 0 && <p className="alert budget-warning wide" role="status">Khoản chi này sẽ khiến nhóm {form.category} trong tháng {form.spent_on.slice(0, 7).split('-').reverse().join('/')} vượt hạn mức {money(previewOver)}. Bạn vẫn có thể lưu khoản chi.</p>}
+            {budgetError && <p className="budget-hint wide">Chưa kiểm tra được hạn mức. Bạn vẫn có thể ghi khoản chi và làm mới để tải lại hạn mức.</p>}
+            <div className="form-actions wide"><button type="submit" className="button primary" disabled={busy}>{busy ? 'Đang lưu…' : editing ? 'Lưu thay đổi' : '＋ Ghi khoản chi'}</button>{editing && <button type="button" className="button secondary" onClick={() => { setEditing(null); setForm(blank()); setAmountText(''); setCustomCategory(false); }}>Hủy sửa</button>}</div>
+          </form>
+        </section>
+        <section className="panel chart-panel" id="charts">
+          <div className="section-head"><div><p className="eyebrow">PHÂN BỔ CHI TIÊU</p><h2>Chi theo nhóm</h2></div><span className="head-icon">◔</span></div>
+          {categories.length ? <div className="category-chart"><div className="pie-wrap"><div className="pie-chart" role="img" aria-label={'Biểu đồ tròn chi tiêu theo nhóm trong ' + monthLabel(month)} style={{ background: `conic-gradient(${pieGradient})` }}><div className="pie-center"><small>Tổng đã chi</small><strong>{money(summary.total)}</strong></div></div></div>{categories.map(([name, amount]) => <div className="category-row" key={name}><div className="category-line"><span><i className="category-dot" style={{ backgroundColor: categoryColors.get(name) }} />{name}</span><strong>{Math.round(amount / summary.total * 100)}% · {money(amount)}</strong></div><div className="bar-track"><div className="bar-fill" style={{ backgroundColor: categoryColors.get(name), width: Math.max(2, amount / maxCategory * 100) + '%' }} /></div></div>)}</div> : <EmptyChart />}
+        </section>
+      </div>
       <section className="panel daily-panel" id="daily-chart">
         <div className="section-head"><div><p className="eyebrow">NHỊP CHI TIÊU</p><h2>Chi theo ngày</h2></div><span className="head-icon">▥</span></div>
         {summary.count > 0 && <div className="daily-legend" aria-label="Chú thích nhóm chi tiêu">{categories.map(([name]) => <span key={name}><i className="category-dot" style={{ backgroundColor: categoryColors.get(name) }} />{name}</span>)}</div>}
@@ -305,10 +311,6 @@ function App() {
         </div>
         {!loading && historyFiltered && <p className="history-results" role="status">Tìm thấy {filteredItems.length} khoản chi · Tổng {money(filteredTotal)}</p>}
         {loading ? <p className="empty-copy">Đang tải dữ liệu…</p> : filteredItems.length ? <div className="table-wrap history-table-scroll" tabIndex={0} role="region" aria-label="Lịch sử chi tiêu, cuộn để xem thêm giao dịch"><table><thead><tr>{HISTORY_SORT_FIELDS.map(({ field, label }) => <th key={field} scope="col" aria-sort={historySortField === field ? (historySortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}><button type="button" className="table-sort-button" onClick={() => toggleHistorySort(field)} aria-label={'Sắp xếp theo ' + label.toLowerCase()}>{label}<span aria-hidden="true">{historySortField === field ? (historySortDirection === 'asc' ? '↑' : '↓') : '↕'}</span></button></th>)}<th aria-label="Thao tác" /></tr></thead><tbody>{sortedItems.map(item => <tr key={item.id}><td>{dateLabel(item.spent_on)}</td><td className="description-cell" title={item.description}>{item.description}</td><td><span className="tag" title={item.category}>{item.category}</span></td><td className="amount-cell">{money(item.amount_vnd)}</td><td className="row-actions"><button onClick={() => startEdit(item)} disabled={busy}>Sửa</button><button className="danger" onClick={() => remove(item)} disabled={busy}>Xóa</button></td></tr>)}</tbody></table></div> : historyFiltered ? <div className="empty-history"><span>⌕</span><strong>Không tìm thấy khoản chi phù hợp</strong><p>Thử chọn nhóm hoặc ngày khác trong {monthLabel(month).toLowerCase()}.</p><button type="button" className="button secondary" onClick={clearHistoryFilters}>Xóa bộ lọc</button></div> : <div className="empty-history"><span>✎</span><strong>Chưa có khoản chi nào</strong><p>Thêm khoản chi đầu tiên để bắt đầu theo dõi {monthLabel(month).toLowerCase()}.</p></div>}
-      </section>
-      <section className="panel chart-panel" id="charts">
-        <div className="section-head"><div><p className="eyebrow">PHÂN BỔ CHI TIÊU</p><h2>Chi theo nhóm</h2></div><span className="head-icon">◔</span></div>
-        {categories.length ? <div className="category-chart"><div className="pie-wrap"><div className="pie-chart" role="img" aria-label={'Biểu đồ tròn chi tiêu theo nhóm trong ' + monthLabel(month)} style={{ background: `conic-gradient(${pieGradient})` }}><div className="pie-center"><small>Tổng đã chi</small><strong>{money(summary.total)}</strong></div></div></div>{categories.map(([name, amount]) => <div className="category-row" key={name}><div className="category-line"><span><i className="category-dot" style={{ backgroundColor: categoryColors.get(name) }} />{name}</span><strong>{Math.round(amount / summary.total * 100)}% · {money(amount)}</strong></div><div className="bar-track"><div className="bar-fill" style={{ backgroundColor: categoryColors.get(name), width: Math.max(2, amount / maxCategory * 100) + '%' }} /></div></div>)}</div> : <EmptyChart />}
       </section>
       <footer>Ghi chép đều đặn, hiểu tiền của mình hơn mỗi ngày.</footer>
     </main>
