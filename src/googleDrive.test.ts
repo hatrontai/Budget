@@ -147,3 +147,73 @@ it('keeps added and deleted categories across reconnects without changing expens
   expect((await drive.listCategorySettings())[0].active).toBe(true);
   expect(writes.every(url => url.includes('NhomChiTieu!'))).toBe(true);
 });
+
+it('renames expense and budget references atomically, preserves monthly rules and rejects collisions', async () => {
+  vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client-id');
+  vi.stubGlobal('window', { google: { accounts: { oauth2: { initTokenClient: ({ callback }: { callback: (value: unknown) => void }) => ({ requestAccessToken: () => callback({ access_token: 'test-token', expires_in: 3600 }) }) } } } });
+  const sheets: Record<string, Array<Array<string | number | boolean>>> = {
+    ChiTieu: [
+      ['id', 'spent_on', 'amount_vnd', 'description', 'category', 'created_at', 'deleted_at'],
+      ['one', '2026-10-01', 70000, 'Xe', 'di chuyển', '2026-10-01T00:00:00Z', ''],
+      ['two', '2026-09-01', 50000, 'Xe cũ', 'di chuyển', '2026-09-01T00:00:00Z', 'deleted'],
+    ],
+    HanMuc: [
+      ['category', 'month', 'mode', 'limit_vnd'],
+      ['di chuyển', '2026-09', 'default', 200000],
+      ['di chuyển', '2026-10', 'override', 100000],
+      ['di chuyển', '2026-11', 'default', 300000],
+      ['invalid', 'invalid', 'invalid', 'invalid'],
+    ],
+    NhomChiTieu: [['category', 'active'], ['di chuyển', true]],
+  };
+  let fail = false;
+  let writes = 0;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
+    const decoded = decodeURIComponent(url);
+    let data: unknown = {};
+    if (url.includes('/drive/v3/files?')) data = { files: [{ id: 'sheet' }] };
+    else if (url.includes('fields=sheets.properties')) data = { sheets: Object.keys(sheets).map((title, sheetId) => ({ properties: { title, sheetId } })) };
+    else if (url.includes('/values:batchUpdate')) {
+      if (fail) return new Response(JSON.stringify({ error: { message: 'Write failed' } }), { status: 500 });
+      writes++;
+      for (const item of JSON.parse(init.body as string).data) {
+        const [, sheet, column, row] = item.range.match(/([^!]+)!([A-Z])(\d+)/);
+        const offset = column.charCodeAt(0) - 65;
+        const index = Number(row) - 1;
+        sheets[sheet][index] ??= [];
+        item.values[0].forEach((value: string | number | boolean, i: number) => { sheets[sheet][index][offset + i] = value; });
+      }
+    } else if (decoded.includes('/values/') && !init.method) {
+      const [, sheet, row] = decoded.match(/\/values\/([^!]+)![A-Z](\d+)/)!;
+      data = { values: row === '1' ? [sheets[sheet][0]] : sheets[sheet].slice(Number(row) - 1) };
+    }
+    return new Response(JSON.stringify(data), { status: 200 });
+  }));
+  const drive = await import('./googleDrive');
+  await drive.connectGoogleDrive();
+  const snapshot = JSON.stringify(sheets);
+  await expect(drive.saveCategoryEdit('di chuyển', 'Ăn uống')).rejects.toThrow('đã tồn tại');
+  await expect(drive.saveCategoryEdit('di chuyển', ' ')).rejects.toThrow('Tên nhóm');
+  expect(JSON.stringify(sheets)).toBe(snapshot);
+  fail = true;
+  await expect(drive.saveCategoryEdit('di chuyển', 'Xe cộ')).rejects.toThrow('Write failed');
+  expect(JSON.stringify(sheets)).toBe(snapshot);
+  fail = false;
+  await drive.saveCategoryEdit('di chuyển', 'Xe cộ', { category: 'Xe cộ', month: '2026-10', mode: 'override', limit_vnd: 150000 });
+  expect(writes).toBe(1);
+  expect(sheets.ChiTieu[1]).toEqual(['one', '2026-10-01', 70000, 'Xe', 'Xe cộ', '2026-10-01T00:00:00Z', '']);
+  expect(sheets.ChiTieu[2][4]).toBe('Xe cộ');
+  expect(await drive.listBudgets()).toEqual([
+    { category: 'Xe cộ', month: '2026-09', mode: 'default', limit_vnd: 200000 },
+    { category: 'Xe cộ', month: '2026-10', mode: 'override', limit_vnd: 150000 },
+    { category: 'Xe cộ', month: '2026-11', mode: 'default', limit_vnd: 300000 },
+  ]);
+  expect(await drive.listCategorySettings()).toEqual([{ category: 'di chuyển', active: false }, { category: 'Xe cộ', active: true }]);
+  await drive.saveCategoryEdit('Xe cộ', 'Xe cộ', { category: 'Xe cộ', month: '2026-12', mode: 'default', limit_vnd: 400000 });
+  expect(sheets.HanMuc[4]).toEqual(['invalid', 'invalid', 'invalid', 'invalid']);
+  expect(sheets.HanMuc[5]).toEqual(['Xe cộ', '2026-12', 'default', 400000]);
+  await drive.saveCategoryEdit('Xe cộ', 'di chuyển');
+  expect(sheets.ChiTieu[1][4]).toBe('di chuyển');
+  expect(await drive.listCategorySettings()).toEqual([{ category: 'di chuyển', active: true }, { category: 'Xe cộ', active: false }]);
+  expect(sheets.NhomChiTieu).toHaveLength(3);
+});

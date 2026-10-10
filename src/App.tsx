@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { CATEGORIES, formatVndInput, sortDailyCategories, sortExpenses, summarize, type ExpenseSortField, type SortDirection, type Expense, type ExpenseInput } from './shared';
-import { connectGoogleDrive, disconnectGoogleDrive, listExpenses, addExpense, updateExpense, deleteExpense, listBudgets, listCategorySettings, saveCategorySetting, type CategorySetting, DriveAuthError } from './googleDrive';
+import { connectGoogleDrive, disconnectGoogleDrive, listExpenses, addExpense, updateExpense, deleteExpense, listBudgets, listCategorySettings, saveCategorySetting, saveCategoryEdit, type CategorySetting, DriveAuthError } from './googleDrive';
 import './style.css';
 import logo from './assets/logo.svg';
 import AmountInput from './AmountInput';
@@ -106,6 +106,18 @@ function App() {
   async function manageCategory(name: string, active: boolean) {
     await saveCategorySetting(name, active);
     setCategorySettings(current => [...current.filter(item => item.category !== name), { category: name, active }]);
+  }
+
+  async function editCategory(original: string, name: string, budget?: Budget) {
+    await saveCategoryEdit(original, name, budget);
+    if (original !== name) {
+      const [limits, settings, expenses] = await Promise.all([listBudgets(), listCategorySettings(), listExpenses()]);
+      setBudgets(limits); setCategorySettings(settings); setAllItems(expenses);
+      setKnownCategories([...new Set(expenses.map(item => item.category))]);
+      setForm(current => current.category === original ? { ...current, category: name } : current);
+      setHistoryCategory(current => current === original ? name : current);
+    } else setBudgets(await listBudgets());
+    setBudgetError('');
   }
 
   function report(cause: unknown) {
@@ -296,7 +308,7 @@ function App() {
         {summary.count > 0 && <div className="day-detail" aria-live="polite">{selectedDay ? <><strong>Ngày {selectedDay}: {money(days[selectedDay - 1].amount)}</strong><div className="day-breakdown">{days[selectedDay - 1].groups.length ? days[selectedDay - 1].groups.map(group => <span key={group.name}><i className="category-dot" style={{ backgroundColor: categoryColors.get(group.name) }} />{group.name} · {group.count} lần: <b>{money(group.amount)}</b></span>) : <span>Không có khoản chi trong ngày này.</span>}</div></> : 'Chạm vào cột để xem số tiền theo nhóm của ngày đó.'}</div>}
 
       </section>
-      <BudgetPanel month={month} categories={activeCategories} onCategoryChange={manageCategory} budgets={budgets} spending={summary.byCategory} loading={budgetLoading || loading} error={budgetError} onChange={result => { setBudgets(result); setBudgetError(''); }} onError={cause => { if (cause instanceof DriveAuthError) report(cause); }} />
+      <BudgetPanel month={month} categories={activeCategories} onCategoryChange={manageCategory} onCategoryEdit={editCategory} budgets={budgets} spending={summary.byCategory} loading={budgetLoading || loading} error={budgetError} onChange={result => { setBudgets(result); setBudgetError(''); }} onError={cause => { if (cause instanceof DriveAuthError) report(cause); }} />
       <section className="panel history-panel" id="history">
         <div className="section-head"><div><p className="eyebrow">LỊCH SỬ</p><h2>Các khoản đã ghi <span className="count-pill">{filteredItems.length}</span></h2></div></div>
         <p className="history-tools-title">Tìm kiếm hóa đơn</p>

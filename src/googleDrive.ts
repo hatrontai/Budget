@@ -1,4 +1,4 @@
-import { validateExpense, type Expense, type ExpenseInput } from './shared';
+import { CATEGORIES, validateExpense, type Expense, type ExpenseInput } from './shared';
 
 import { validateBudget, type Budget } from './budgets';
 
@@ -229,5 +229,43 @@ export async function saveCategorySetting(category: string, active: boolean): Pr
   const range = found ? 'NhomChiTieu!A' + found.row + ':B' + found.row : 'NhomChiTieu!A:B';
   await googleRequest(rangeUrl(spreadsheetId, range) + (found ? '?valueInputOption=RAW' : ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS'), {
     method: found ? 'PUT' : 'POST', body: JSON.stringify({ values: [[category, active]] }),
+  });
+}
+
+
+// Rename every reference and save the edited limit in one Sheets request.
+export async function saveCategoryEdit(original: string, name: string, input?: Budget): Promise<void> {
+  name = name.trim();
+  if (!name || name.length > 40) throw new Error('Tên nhóm phải có từ 1 đến 40 ký tự.');
+  if (input && !validateBudget({ ...input, category: name })) throw new Error('Hạn mức không hợp lệ.');
+  const [expenses, settings] = await Promise.all([readRows(), readCategoryRows()]);
+  await ensureBudgetSheet(spreadsheetId);
+  const stored = await googleRequest<{ values?: Array<Array<string | number>> }>(rangeUrl(spreadsheetId, BUDGET_SHEET + '!A2:D') + '?valueRenderOption=UNFORMATTED_VALUE');
+  const budgetRows = stored.values ?? [];
+  if (name !== original) {
+    const activeDefaults = CATEGORIES.filter(category => settings.filter(item => item.category === category).at(-1)?.active !== false);
+    const known = [...activeDefaults, ...expenses.map(item => item.expense.category), ...settings.filter(item => item.active).map(item => item.category), ...budgetRows.map(row => String(row[0] ?? ''))];
+    if (known.some(category => category !== original && category.toLocaleLowerCase('vi') === name.toLocaleLowerCase('vi'))) throw new Error('Tên nhóm này đã tồn tại. Hãy chọn tên khác.');
+  }
+  const data: Array<{ range: string; values: Array<Array<string | number | boolean>> }> = [];
+  if (name !== original) {
+    for (const item of expenses) if (item.expense.category === original) data.push({ range: SHEET + '!E' + item.row, values: [[name]] });
+    for (const [index, row] of budgetRows.entries()) if (row[0] === original) data.push({ range: BUDGET_SHEET + '!A' + (index + 2), values: [[name]] });
+    // Keep the old name hidden so built-in categories do not reappear.
+    const old = settings.filter(item => item.category === original).at(-1);
+    const nextRow = settings.reduce((max, item) => Math.max(max, item.row), 1) + 1;
+    data.push({ range: 'NhomChiTieu!A' + (old?.row ?? nextRow) + ':B' + (old?.row ?? nextRow), values: [[original, false]] });
+    const existing = settings.filter(item => item.category === name).at(-1);
+    const newRow = existing?.row ?? nextRow + (old ? 0 : 1);
+    data.push({ range: 'NhomChiTieu!A' + newRow + ':B' + newRow, values: [[name, true]] });
+  }
+  if (input) {
+    let index = -1;
+    budgetRows.forEach((row, i) => { if (row[0] === original && row[1] === input.month && row[2] === input.mode) index = i; });
+    const row = index < 0 ? budgetRows.length + 2 : index + 2;
+    data.push({ range: BUDGET_SHEET + '!A' + row + ':D' + row, values: [[name, input.month, input.mode, input.limit_vnd]] });
+  }
+  if (data.length) await googleRequest('https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values:batchUpdate', {
+    method: 'POST', body: JSON.stringify({ valueInputOption: 'RAW', data }),
   });
 }
